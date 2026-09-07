@@ -8,24 +8,50 @@ authors = [{ name = "Petter Gustafsson", email = "petter.gustafsson1998@gmail.co
 maintainers = [{ name = "Petter Gustafsson", email = "petter.gustafsson1998@gmail.com" }]
 
 dependencies = [
-    "fastapi>=0.115.0,<0.116.0",
-    "uvicorn[standard]>=0.34.0,<0.35.0",
+    "fastapi>=0.141.0", # Requires Python>=3.10. Includes: Pydantic and Starlette.
+    "uvicorn[standard]>=0.52.0", # Requires Python>=3.10.
+]
+
+[project.optional-dependencies]
+dev = [
+    "mypy>=2.3.0,<3.0.0",
+    "ruff>=0.16.0,<0.17.0",
+    "pytest>=9.1.0,<10.0.0",
 ]
 
 [tool.poetry]
 packages = [{ include = "app" }]
 
-[tool.poetry.group.dev]
-optional = true
-
-[tool.poetry.group.dev.dependencies]
-mypy = "^1.15.0"
-ruff = "^0.9.0"
-pytest = "^8.3.0"
-
 [tool.pytest]
 testpaths = [
     "test",
+]
+
+[tool.mypy]
+strict = true
+files = [
+    "app",
+    "test",
+]
+
+[tool.ruff]
+include = [
+    "app/**/*.py",
+    "test/**/*.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",
+    "F",
+    "I",
+    "D",
+]
+ignore = [
+    "D105", # Magic methods do not need docstrings.
+    "D107", # __init__ methods do not need docstrings.
+    "D211", # Incorrect blacnk line before class
+    "D213", # Multi line summary second line
 ]
 
 [build-system]
