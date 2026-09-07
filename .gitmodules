@@ -1,0 +1,3 @@
+[submodule "research"]
+	path = research
+	url = https://github.com/Petterluring/4dt911-vis-project-research.git
