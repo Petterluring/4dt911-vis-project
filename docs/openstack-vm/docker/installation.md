@@ -13,3 +13,13 @@ Then run
 sudo apt install docker.io
 ```
 and check docker version again.
+
+Make also sure that docker compose was installed.
+```bash
+docker compose version
+```
+
+If not, the user can install by running
+```bash
+sudo apt install docker-compose-v2
+```

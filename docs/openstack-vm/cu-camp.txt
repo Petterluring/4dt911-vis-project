@@ -1,2 +1,5 @@
 https://ca.camp.lnu.se/
-http://cu0089.camp.lnu.se
+https://cu0089.camp.lnu.se
+http://172.27.60.89/
+
+mlflow, docker compose: https://mlflow.org/docs/latest/self-hosting/
