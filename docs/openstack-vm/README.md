@@ -1,0 +1,1 @@
+This folder contain documentation for how to set up the remote VM machine that hosts all needed services that the app depend on.
