@@ -1,0 +1,66 @@
+# Default server for requests that don't match our hostname
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    server_name _;
+
+    root /var/www/html;
+    index index.html index.htm index.nginx-debian.html;
+
+    location / {
+        auth_basic "test user";
+        auth_basic_user_file /etc/nginx/users/.htpasswd-test-user;
+
+        try_files $uri $uri/ =404;
+    }
+}
+
+
+# Redirect HTTP to HTTPS
+server {
+    listen 80;
+    listen [::]:80;
+
+    server_name cu0089.camp.lnu.se;
+
+    return 301 https://$host$request_uri;
+}
+
+
+# HTTPS website
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+
+    server_name cu0089.camp.lnu.se;
+
+    root /var/www/html;
+    index welcome-page.html;
+
+    ssl_certificate /etc/letsencrypt/live/cu0089.camp.lnu.se/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cu0089.camp.lnu.se/privkey.pem;
+
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    # Requires user to authenticate by username and password
+    auth_basic "4dt911 project services entry";
+    auth_basic_user_file /etc/nginx/users/.htpasswd-4dt911-project;
+
+    location / {
+	# Serves welcome page
+        try_files $uri $uri/ =404;
+    }
+
+    location /mlflow/ {
+	# Serves mlflow app
+	proxy_pass http://localhost:5000/;
+
+	proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;	
+
+    }
+}
