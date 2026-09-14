@@ -1,6 +1,11 @@
-This instruction assumes that the user is remotely connected to the VM instance.
+# Setting Up MLflow
 
-We use docker to run an mlflow service on the vm machine. The service was deployed using these instructions (see Docker Compose section):
-https://mlflow.org/docs/latest/self-hosting/
+These instructions assume that you are connected to the VM instance remotely using a CLI.
 
-Make sure to open all ports that the services runs on in the security group, including mlflow server, PostgresSQL, Rust, etc.
+## Deploy MLflow with Docker
+
+We use Docker to run the MLflow service on the VM. Deploy the service by following the instructions in the **Docker Compose** section of the [MLflow self-hosting documentation](https://mlflow.org/docs/latest/self-hosting/).
+
+## Configure Network Access
+
+Make sure that the ports used by the services are open in the VM instance's security group. This includes the MLflow server, PostgreSQL, Rust, and any other services deployed on the VM.

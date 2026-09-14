@@ -1,19 +1,28 @@
-Nginx Basic Authentication
-1. Install htpasswd
+# Nginx Basic Authentication
+
+These instructions assume that you are connected to the VM instance remotely using a CLI.
+
+These instructions configure HTTP Basic Authentication for an Nginx location.
+
+## Install `htpasswd`
+
+Install the `apache2-utils` package, which provides the `htpasswd` command:
 ```bash
 sudo apt install apache2-utils
 ```
 
-2. Create a username and password
+## Create a User
+
+Create a username and password:
 ```bash
 sudo htpasswd -c /etc/nginx/.htpasswd <username>
 ```
 
-You will be prompted to enter the password.
+Replace `<username>` with the username you want to create. You will be prompted to enter the password.
 
-3. Enable Basic Authentication
+## Enable Basic Authentication
 
-Add the following to the relevant Nginx location block:
+Add the following directives to the relevant Nginx `location` block:
 
 ```bash
 auth_basic "Restricted";
@@ -26,12 +35,20 @@ location /<path>/ {
     auth_basic "Restricted";
     auth_basic_user_file /etc/nginx/.htpasswd;
 
-    # Some action to be taken. For instance, return a file.
+    # Add the location-specific configuration here.
 }
 ```
 
-5. Test and reload Nginx
-nginx -t
-sudo nginx -s reload
+## Test and Reload Nginx
 
-6. Visit the server and see if the browser prompts username and password.
+Test the Nginx configuration:
+```bash
+nginx -t
+```
+
+If the test succeeds, reload Nginx:
+```bash
+sudo nginx -s reload
+```
+
+Visit the protected path in a browser and confirm that it prompts you for a username and password.
