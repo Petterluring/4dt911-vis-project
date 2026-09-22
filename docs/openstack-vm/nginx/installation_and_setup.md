@@ -9,6 +9,11 @@ Install Nginx:
 sudo apt install nginx
 ```
 
+Make sure to include the ngx_stream_proxy_module also:
+```bash
+sudo apt install libnginx-mod-stream
+````
+
 Check whether Nginx is running:
 ```bash
 sudo systemctl status nginx
