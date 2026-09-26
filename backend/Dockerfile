@@ -1,12 +1,21 @@
+# ---------Build Stage---------
+FROM python:3.14-slim AS builder
+
+WORKDIR /build
+
+RUN pip install --upgrade pip
+RUN pip install --no-cache-dir poetry
+
+COPY pyproject.toml poetry.lock ./
+
+RUN poetry config virtualenvs.create false
+RUN poetry install --only main --no-root
+
+# ---------Runtime Stage---------
 FROM python:3.14-slim
+WORKDIR /backend
 
-WORKDIR /app
+COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-COPY pyproject.toml poetry.lock README.md ./
 COPY app ./app
-
-RUN pip install --no-cache-dir .
-
-EXPOSE 8000
-
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

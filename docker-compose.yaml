@@ -1,0 +1,15 @@
+
+
+services:
+  airbnb-explorer-service:
+    build: ./backend
+    ports:
+      - "${FASTAPI_PORT}:${FASTAPI_PORT}"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "${FASTAPI_PORT}"]
+    networks:
+      - default
+
+
+networks:
+  default:
+    name: airbnb-explorer-network
