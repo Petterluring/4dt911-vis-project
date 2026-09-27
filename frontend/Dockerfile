@@ -1,7 +1,7 @@
-# -------BUILD STAGE-------
-FROM node:22-alpine AS builder
+# Build stage
+FROM node:24-alpine AS builder
 
-WORKDIR /build
+WORKDIR /app
 
 COPY package*.json ./
 RUN npm ci
@@ -10,11 +10,11 @@ COPY . .
 RUN npm run build
 
 
-# -------RUNTIME STAGE-------
-FROM node:22-alpine
+# Runtime stage
+FROM node:24-alpine
 
 WORKDIR /app
 
 RUN npm install -g serve
 
-COPY --from=builder /build/dist ./dist
+COPY --from=builder /app/dist ./dist
