@@ -1,10 +1,13 @@
 import './App.css'
 
+import HelloWorld from './components/hello/HelloWorld';
+import HelloFastApi from './components/hello/HelloFastApi';
+
 function App() {
   return (
     <main>
-      <h1>Hello, world!</h1>
-      <p>Welcome to my app.</p>
+      <HelloWorld />
+      <HelloFastApi />
     </main>
   )
 }
