@@ -9,10 +9,10 @@ function HelloFastApi() {
 
   const handleClick = async () => {
     try {
-    const data = await fetchHelloFastAPI();
-    setMessage(data);
-    } catch (error) {
-        setMessage(failMessage);
+      const data = await fetchHelloFastAPI();
+      setMessage(data);
+    } catch {
+      setMessage(failMessage);
     }
   };
 
