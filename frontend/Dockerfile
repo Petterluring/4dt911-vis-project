@@ -15,6 +15,7 @@ FROM node:24-alpine
 
 WORKDIR /app
 
+COPY --from=builder /app/dist ./dist
+
 RUN npm install -g serve
 
-COPY --from=builder /app/dist ./dist

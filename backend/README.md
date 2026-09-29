@@ -1,6 +1,9 @@
-# 4DT911 Visualization Backend
+# 4DT911 Visualization Analytics — Backend
 
-FastAPI backend for the 4DT911 visualization project.
+## Introduction
+
+This directory contains the backend for the 4DT911 visualization
+analytics project. It is built with python and FastAPI, and uses Uvicorn as the development and production server.
 
 ## Prerequisites
 
@@ -9,6 +12,9 @@ FastAPI backend for the 4DT911 visualization project.
 - Docker (optional, for the container workflow)
 
 The application runs on `http://127.0.0.1:8000`.
+
+The application is maintained by Petter Gustafsson, Kim Wong, and Moritz
+Steinke.
 
 ## Setup and run with Poetry
 
@@ -57,22 +63,7 @@ python -m pip install -e ".[dev]"
 Start the development server:
 
 ```bash
-uvicorn app.main:app --reload
-```
-
-## Run with Docker
-
-Build the image and start the application:
-
-```bash
-docker build -t vis-project-backend .
-docker run --rm -p 8000:8000 vis-project-backend
-```
-
-Open `http://127.0.0.1:8000/` in a browser or use:
-
-```bash
-curl http://127.0.0.1:8000/
+uvicorn app.main:app --reload # Runs on port 8000 by default
 ```
 
 ## Tests and linting
@@ -81,5 +72,5 @@ When the virtual environment is active, run:
 
 ```bash
 pytest
-ruff check app test
+ruff check
 ```
