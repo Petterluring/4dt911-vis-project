@@ -14,38 +14,46 @@ Some important files and folders:
 - `src/pages/` contains the different pages in the app.
 - `src/components/` contains reusable UI components used by the pages.
 - `src/api/` contains frontend API communication. The developer should use `/api` as a prefix when specifying path segments to the API.
-  the FastAPI demo.
 - `vite.config.ts` configures Vite, including forwarding `/api` requests to
-  the local backend at `http://localhost:8000`.
-
-The application is maintained by Petter Gustafsson, Kim Wong, and Moritz
-Steinke.
+  the local backend at `http://localhost:8000`. This setting is only relevant during development.
 
 ## Prerequisites
-- npm 11.19.0 or newer
+- Node 26.0.0 or newer
 
 ## Installing and running the app
 
-Install a current version of Node.js and npm, then run the following commands
-from the `frontend` directory:
+Install a current version of [Node.js](https://nodejs.org/) before setting up the frontend. From the `frontend` directory, install the project dependencies and start the Vite development server:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Vite prints the local development URL in the terminal when the server starts.
-Open that URL in a browser to use the app. The FastAPI demo also requires its
-backend to be running locally on port `8000`.
+Vite prints the local development URL in the terminal when the server starts. Open this URL in a browser to use the application.
+
+The FastAPI backend must also be running locally on port `8000` for features that communicate with the backend.
 
 ## Verify
 
-Run the linter and production build from the `frontend` directory:
+The frontend provides commands for linting the source code and creating a production build. Run these commands from the `frontend` directory:
 
 ```bash
 npm run lint
 npm run build
 ```
 
-The build command runs the TypeScript project checks and creates the optimized
-production bundle in `dist/`.
+`npm run lint` runs ESLint to identify potential problems and enforce the project's coding conventions.
+
+`npm run build` creates an optimized production bundle in `dist/` and runs the TypeScript compiler checks as part of the build process. Both commands should complete successfully before changes are considered ready.
+
+## Development guidelines
+
+When developing the frontend, follow these guidelines:
+
+* **Create reasonable UI components.** Break the interface into reusable components when a part of the UI has a clear responsibility or is reused. Avoid both overly large components and unnecessary components that only contain a few lines of markup.
+* **Keep components focused.** Components should have a clear purpose and avoid combining unrelated UI, data-fetching, and application logic where possible.
+* **Use `api/` for API endpoints.** API endpoint paths should use `/api/` as their prefix, for example `/api/municipalities` or `/api/listings`. Keep API communication separate from presentation logic where practical.
+* **Document non-obvious code.** Add comments or documentation when the purpose, behaviour, or reasoning behind an implementation is not immediately clear. Avoid comments that simply restate what the code does.
+* **Use meaningful names.** Components, variables, functions, and types should have descriptive names that make their purpose clear.
+* **Keep TypeScript types explicit.** Define appropriate types for API responses, component props, and other structured data instead of relying unnecessarily on implicit or loosely typed values.
+* **Follow the existing project structure and conventions.** New code should fit the patterns already established in the project rather than introducing alternative approaches without a clear reason.

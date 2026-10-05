@@ -8,75 +8,16 @@ The frontend provides the user-facing visualization interface, while the backend
 exposes the application's API layer and serves as the integration point for the
 project's data and model workflows.
 
-## Requirements
+The project is maintained by Petter Gustafsson, Kim Wong, and Moritz
+Steinke.
 
-- Python 3.14
-- [Poetry](https://python-poetry.org/docs/#installation) 2.x
-- Node.js 20 LTS or newer
-- npm 10 or newer
-- Docker (optional, for containerized backend workflows)
-
-The project is intended to be run locally during development, and the backing
-research repository is kept separate as a Git submodule for reproducible ML work.
-
-## Initialize and install
+## Cloning the project
 
 Clone the repository and initialize the submodules:
 
 ```bash
-git clone https://github.com/Petterluring/4dt911-vis-project.git
+git clone --recurse-submodules https://github.com/Petterluring/4dt911-vis-project.git
 cd 4dt911-vis-project
-git submodule update --init --recursive
-```
-
-Make sure Poetry creates virtual environments inside the project directory:
-
-```bash
-poetry config virtualenvs.in-project true
-```
-
-Install the backend dependencies:
-
-```bash
-cd backend
-poetry install --extras dev
-```
-
-Install the frontend dependencies:
-
-```bash
-cd ../frontend/my-app
-npm install
-```
-
-## Running the application
-
-### Backend
-
-From the `backend/` directory, start the FastAPI development server:
-
-```bash
-poetry run uvicorn app.main:app --reload
-```
-
-The backend is available at:
-
-```text
-http://127.0.0.1:8000
-```
-
-### Frontend
-
-From the `frontend/my-app/` directory, run the Vite development server:
-
-```bash
-npm run dev
-```
-
-The frontend is typically available at:
-
-```text
-http://127.0.0.1:5173
 ```
 
 ## Research submodule
@@ -102,6 +43,8 @@ frontend/                  # React + Vite frontend application
 research/                  # ML research submodule
 
 README.md                  # Main project overview
+docker-compose.yaml        # Compose file for app orchestration
+docs/                      # Directory containing various instructions, including guidelines for configuring the virtual machine required by the project.
 .gitmodules                # Git submodule configuration
 ```
 
@@ -109,10 +52,43 @@ README.md                  # Main project overview
 
 A typical local workflow is:
 
-1. Start the backend in `backend/`
-2. Start the frontend in `frontend/my-app/`
+1. Start the backend in `backend/` (see README in `backend/`)
+2. Start the frontend in `frontend/` (see README in `frontend/`)
 3. Use the frontend to interact with the API while developing the visualization UI
 4. Keep research experiments isolated in the `research/` submodule
+
+## Remote Services
+
+The project depends on a remote virtual machine hosted on Linnaeus University's (LNU) Computer Science (CS) cloud. The machine is accessible at [cu0089.camp.lnu.se](https://cu0089.camp.lnu.se/).
+
+Access to the virtual machine requires a connection to the EDU VPN when accessing it from outside the campus network. See the [VPN instructions](https://www.lnu.se/mot-linneuniversitetet/aktuellt/nyheter/2025/nytt-student-vpn/) for information on configuring the VPN connection.
+
+The project also requires access to the `4dt911-resources` folder, which contains the credentials necessary to connect to the remote services. Contact a project member to obtain access to this folder. Also, see `backend/` README for more details.
+
+
+
+
+## Running the App with Docker Compose
+
+Make sure that the ports defined in the `.env` file are available before starting the application.
+
+The backend and frontend projects each have a `Dockerfile` specifying how they are built. The `docker-compose.yaml` file builds and orchestrates these services together with an Nginx server, which routes HTTP requests to the appropriate service. In addition to defining the build process, the file specifies exposed ports, environment variables, container names, and other configuration.
+
+Start the application using:
+
+```bash
+docker compose up -d
+```
+
+Verify that the application is running as intended by inspecting the output of:
+```bash
+docker ps
+```
+
+
+Once the services have started, open `http://localhost:<PORT>` in a web browser. If Nginx is configured to use port 80, `http://localhost/` is sufficient.
+
+
 
 ## Security and data handling
 
