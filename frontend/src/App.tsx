@@ -1,16 +1,16 @@
 import './App.css';
-import HelloFastApiPage from './pages/demos/HelloFastApiPage';
-import HelloWorldPage from './pages/demos/HelloWorldPage';
+import HelloWorldRustic from './pages/demos/HelloWorldRustic';
+import HelloWorldFuture from './pages/demos/HelloWorldFuture';
 
 function App() {
   const path = window.location.pathname.replace(/\/+$/, '') || '/';
 
   if (path === '/demos/hello-fast-api') {
-    return <HelloFastApiPage />;
+    return <HelloWorldRustic />;
   }
 
   if (path === '/demos/hello-world') {
-    return <HelloWorldPage />;
+    return <HelloWorldFuture />;
   }
 
   return (
