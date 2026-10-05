@@ -1,26 +1,29 @@
 import HelloFastApi from '../../components/hello/HelloFastApi';
-import './HelloFastApiPage.css';
+import HelloWorld from '../../components/hello/HelloWorld';
+import './HelloWorldRustic.css';
 
-function HelloFastApiPage() {
+function HelloWorldRustic() {
   return (
     <div className="rustic-page">
       <header className="rustic-page__nav">
         <a className="rustic-page__brand" href="/">Little Demo Homestead</a>
         <nav aria-label="Demo pages">
-          <a href="/demos/hello-fast-api" aria-current="page">FastAPI</a>
-          <a href="/demos/hello-world">Hello World</a>
+          <a href="/demos/hello-fast-api" aria-current="page">Rustic</a>
+          <a href="/demos/hello-world">Future</a>
         </nav>
       </header>
 
       <main className="rustic-page__content">
-        <p className="rustic-page__eyebrow">A simple message from the backend</p>
-        <h1>Hello from the homestead</h1>
+        <p className="rustic-page__eyebrow">Two little greetings from the homestead</p>
+        <section className="rustic-page__hello" aria-label="Hello World demo">
+          <HelloWorld />
+        </section>
         <p className="rustic-page__description">
-          A little call across the creek to see what the FastAPI server has to say.
+          A simple hello, and a little call across the creek to the FastAPI server.
         </p>
         <section className="rustic-page__note" aria-label="FastAPI greeting">
           <div className="rustic-page__seal" aria-hidden="true">✳</div>
-          <h2>Send a greeting</h2>
+          <h2>Reach the backend</h2>
           <p>Tap below to fetch a fresh hello from the server.</p>
           <HelloFastApi />
         </section>
@@ -30,4 +33,4 @@ function HelloFastApiPage() {
   );
 }
 
-export default HelloFastApiPage;
+export default HelloWorldRustic;

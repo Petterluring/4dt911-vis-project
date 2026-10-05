@@ -95,6 +95,51 @@
   text-shadow: 0 0 35px #56d9ff4d;
 }
 
+.future-page__api {
+  width: min(100%, 28rem);
+  box-sizing: border-box;
+  margin: 0 0 2rem;
+  padding: 1.5rem;
+  border: 1px solid #6cf4ff35;
+  border-radius: 1rem;
+  background: #111c32c9;
+}
+
+.future-page__api h2 {
+  margin: 0;
+  color: #d9eaff;
+  font-size: 1.3rem;
+}
+
+.future-page__api > p {
+  margin: 0.6rem 0 1rem;
+  color: #a9bddb;
+}
+
+.future-page__api button {
+  padding: 0.75rem 1rem;
+  border: 1px solid #6cf4ff5c;
+  border-radius: 999px;
+  color: #aef9ff;
+  background: #6cf4ff0d;
+  font: inherit;
+  cursor: pointer;
+}
+
+.future-page__api button:hover {
+  background: #6cf4ff1c;
+}
+
+.future-page__api button:focus-visible {
+  outline: 2px solid #6cf4ff;
+  outline-offset: 4px;
+}
+
+.future-page__api > div:last-child {
+  margin-top: 1rem;
+  color: #d9eaff;
+}
+
 .future-page__description {
   margin: 1.5rem 0 2rem;
   color: #a9bddb;
@@ -124,6 +169,10 @@
 .future-page__nav a:focus-visible {
   outline: 2px solid #6cf4ff;
   outline-offset: 4px;
+}
+
+.future-page__api > div > div {
+  margin-top: 1rem;
 }
 
 .future-page__orbit {

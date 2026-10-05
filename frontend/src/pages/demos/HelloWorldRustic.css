@@ -63,6 +63,13 @@
   line-height: 1;
 }
 
+.rustic-page__hello h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
 .rustic-page__description {
   max-width: 35rem;
   margin: 1rem auto 2.5rem;
