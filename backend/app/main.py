@@ -5,8 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.router import hello
 
-
-
 app = FastAPI(title="4DT911 Visualization Backend")
 
 app.add_middleware(

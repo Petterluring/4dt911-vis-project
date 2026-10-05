@@ -1,0 +1,3 @@
+Review all the README files in root, backend, and folder directories. For each README. Give feedback on what you think is missing regarding content.
+
+Include both HelloFastApi.tsx and HelloWorld.tsx components (frontend/src/components/hello) in HelloWorldPage.tsx and HelloWorldApiPage.tsx pages in (frontend/src/pages/demos) such that they are essentially the same pages but with different styles. Rename these pages to HelloWorldFuture and HelloWorldRustic respectively. Rename the corresponding css files accordingly with the new names of the pages. 
