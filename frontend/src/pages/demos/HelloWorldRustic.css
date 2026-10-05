@@ -1,0 +1,153 @@
+.rustic-page {
+  min-height: 100vh;
+  box-sizing: border-box;
+  color: #382719;
+  background-color: #f1e6d0;
+  background-image:
+    radial-gradient(ellipse at 10% 8%, #fff8e5 0, transparent 42%),
+    repeating-linear-gradient(0deg, #70533009 0 1px, transparent 1px 5px);
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.rustic-page__nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.25rem clamp(1.25rem, 6vw, 5rem);
+  border-bottom: 1px solid #8c70433d;
+}
+
+.rustic-page__nav a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.rustic-page__brand {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.rustic-page__nav nav {
+  display: flex;
+  gap: 1.25rem;
+  font-size: 0.95rem;
+}
+
+.rustic-page__nav nav a[aria-current='page'] {
+  text-decoration: underline;
+  text-decoration-color: #a05b35;
+  text-underline-offset: 0.35rem;
+}
+
+.rustic-page__content {
+  width: min(100% - 2rem, 54rem);
+  margin: 0 auto;
+  padding: clamp(3rem, 9vw, 7rem) 0 2rem;
+  text-align: center;
+}
+
+.rustic-page__eyebrow {
+  margin: 0 0 0.8rem;
+  color: #805a39;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+.rustic-page__content h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.rustic-page__hello h1 {
+  margin: 0;
+  font-size: clamp(2.5rem, 7vw, 5rem);
+  font-weight: 500;
+  line-height: 1;
+}
+
+.rustic-page__description {
+  max-width: 35rem;
+  margin: 1rem auto 2.5rem;
+  color: #695038;
+  font-size: 1.1rem;
+  line-height: 1.7;
+}
+
+.rustic-page__note {
+  max-width: 29rem;
+  box-sizing: border-box;
+  margin: 0 auto;
+  padding: 2rem;
+  border: 1px solid #ac8d5c;
+  border-radius: 0.35rem;
+  background: #fbf4e5;
+  box-shadow: 0 12px 30px #55391c1c, inset 0 0 0 5px #ac8d5c12;
+}
+
+.rustic-page__seal {
+  display: grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  margin: 0 auto 0.8rem;
+  place-items: center;
+  border: 1px solid #a26a42;
+  border-radius: 50%;
+  color: #8d4f31;
+  font-size: 1.4rem;
+}
+
+.rustic-page__note h2 {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 500;
+}
+
+.rustic-page__note > p {
+  margin: 0.6rem 0 1.25rem;
+  color: #705638;
+}
+
+.rustic-page__note button {
+  padding: 0.8rem 1.2rem;
+  border: 1px solid #613a25;
+  border-radius: 0.25rem;
+  color: #fff8e8;
+  background: #70452d;
+  font: inherit;
+  cursor: pointer;
+}
+
+.rustic-page__note button:hover {
+  background: #58351f;
+}
+
+.rustic-page__note button:focus-visible,
+.rustic-page__nav a:focus-visible {
+  outline: 3px solid #a05b35;
+  outline-offset: 3px;
+}
+
+.rustic-page__note > div:last-child {
+  margin-top: 1rem;
+  color: #4e3926;
+  font-size: 1.1rem;
+}
+
+.rustic-page__footer {
+  margin: 2rem 0 0;
+  color: #856c4a;
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+@media (max-width: 480px) {
+  .rustic-page__nav {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
