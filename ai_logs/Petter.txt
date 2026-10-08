@@ -1,3 +1,13 @@
 Review all the README files in root, backend, and folder directories. For each README. Give feedback on what you think is missing regarding content.
 
 Include both HelloFastApi.tsx and HelloWorld.tsx components (frontend/src/components/hello) in HelloWorldPage.tsx and HelloWorldApiPage.tsx pages in (frontend/src/pages/demos) such that they are essentially the same pages but with different styles. Rename these pages to HelloWorldFuture and HelloWorldRustic respectively. Rename the corresponding css files accordingly with the new names of the pages. 
+
+Build four different ci.yml files for github actions.
+* One stored in the frontend folder that lints the frontend project. The project is initialized with Node.js. A linting command is defined in package.json that can be triggered using 'npm run lint'. The ci should use this command. Should be triggered on feature/**/* branches.
+
+* One stored in the backend folder that lints and tests the backend project. Backend is a python project that is installed using poetry. The ci should run 'pytest', 'mypy' and 'ruff check' once dependencies are installed. Should be triggered on feature/**/* branches.
+
+* One stored in the root that triggers docker builds using the Dockerfiles in frontend and backend. The images should be stored in the image container.
+
+* And finally, a file that aggregates the above files such that all are executed.
+
