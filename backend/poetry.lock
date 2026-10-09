@@ -1212,7 +1212,6 @@ files = [
 
 [package.dependencies]
 psycopg-binary = {version = "3.3.6", optional = true, markers = "implementation_name != \"pypy\" and extra == \"binary\""}
-psycopg-pool = {version = "*", optional = true, markers = "extra == \"pool\""}
 tzdata = {version = "*", markers = "sys_platform == \"win32\""}
 
 [package.extras]
@@ -1299,24 +1298,6 @@ files = [
     {file = "psycopg_binary-3.3.6-cp315-cp315-musllinux_1_2_x86_64.whl", hash = "sha256:303732e798fe6729f8e12021b9c96107df8e95ecec4dd487c67b98ec2a59435e"},
     {file = "psycopg_binary-3.3.6-cp315-cp315-win_amd64.whl", hash = "sha256:2f122603f36050937982abf9668d8bc4769a79f7c93a65013b1c49f1cab7b56b"},
 ]
-
-[[package]]
-name = "psycopg-pool"
-version = "3.3.3"
-description = "Connection Pool for Psycopg"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-files = [
-    {file = "psycopg_pool-3.3.3-py3-none-any.whl", hash = "sha256:9b9cd6a4fcec47a410f7e82d408540e7f77b478509e91b44c1a5457a13e5ff37"},
-    {file = "psycopg_pool-3.3.3.tar.gz", hash = "sha256:df87b5d9d0ad7db37f6cdad4fa8ce113d250f5997f6db38e9a99192fb67f9e1d"},
-]
-
-[package.dependencies]
-typing-extensions = ">=4.6"
-
-[package.extras]
-test = ["anyio (>=4.0)", "mypy (>=2.1.0)", "pproxy (>=2.7)", "pytest (>=6.2.5)", "pytest-cov (>=3.0)", "pytest-randomly (>=3.5)"]
 
 [[package]]
 name = "pyasn1"
@@ -2325,4 +2306,4 @@ dev = ["mypy", "pytest", "ruff", "types-PyYAML"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14.0,<3.15.0"
-content-hash = "0054661ea63de1e5b0744015e5c1e4eff024485f50d0fbee7644c1fc4608858a"
+content-hash = "f22d1de8ee9c8f0c5cbf29407c7998ccd23367ddc37ea5ea610b6637bd90da0c"

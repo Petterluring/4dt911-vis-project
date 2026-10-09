@@ -11,7 +11,7 @@ dependencies = [
     "fastapi>=0.141.0", # Requires Python>=3.10. Includes: Pydantic and Starlette.
     "uvicorn[standard]>=0.52.0", # Requires Python>=3.10.
     "mlflow-skinny>=3.16.0, <4.0.0", # Python>=3.10,
-    "psycopg[binary,pool]>=3.3.6",
+    "psycopg[binary]>=3.3.6",
     "SQLAlchemy>=2.0.54",
 ]
 
@@ -60,6 +60,8 @@ ignore = [
     "D107", # __init__ methods do not need docstrings.
     "D211", # Incorrect blank line before class
     "D213", # Multi line summary second line
+    "D203", # Ignore one line between class and docstring
+    "D204", # Ignore one line between docstring and fields
 ]
 
 [build-system]
