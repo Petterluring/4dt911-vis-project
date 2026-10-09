@@ -10,6 +10,9 @@ maintainers = [{ name = "Petter Gustafsson", email = "petter.gustafsson1998@gmai
 dependencies = [
     "fastapi>=0.141.0", # Requires Python>=3.10. Includes: Pydantic and Starlette.
     "uvicorn[standard]>=0.52.0", # Requires Python>=3.10.
+    "mlflow-skinny>=3.16.0, <4.0.0", # Python>=3.10,
+    "psycopg[binary,pool]>=3.3.6",
+    "SQLAlchemy>=2.0.54",
 ]
 
 [project.optional-dependencies]
@@ -17,6 +20,7 @@ dev = [
     "mypy>=2.3.0,<3.0.0",
     "ruff>=0.16.0,<0.17.0",
     "pytest>=9.1.0,<10.0.0",
+    "types-PyYAML>=6.0.12"
 ]
 
 [tool.poetry]
@@ -40,17 +44,21 @@ include = [
     "test/**/*.py",
 ]
 
+line-length = 120
+
 [tool.ruff.lint]
 select = [
-    "E",
-    "F",
-    "I",
-    "D",
+    "E",  # pycodestyle errors
+    "F",  # Pyflakes
+    "I",  # Import sorting
+    "D",  # Docstring conventions
+    "W",  # pycodestyle warnings
 ]
+
 ignore = [
     "D105", # Magic methods do not need docstrings.
     "D107", # __init__ methods do not need docstrings.
-    "D211", # Incorrect blacnk line before class
+    "D211", # Incorrect blank line before class
     "D213", # Multi line summary second line
 ]
 
