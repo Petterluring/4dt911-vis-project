@@ -1,3 +1,7 @@
 Review all the README files in root, backend, and folder directories. For each README. Give feedback on what you think is missing regarding content.
 
 Include both HelloFastApi.tsx and HelloWorld.tsx components (frontend/src/components/hello) in HelloWorldPage.tsx and HelloWorldApiPage.tsx pages in (frontend/src/pages/demos) such that they are essentially the same pages but with different styles. Rename these pages to HelloWorldFuture and HelloWorldRustic respectively. Rename the corresponding css files accordingly with the new names of the pages. 
+
+I would like to use a logger for my backend app. Can you give me alternatives on how I can configure one in python. I know for instance that python includes its own logger that comes along with the python installation.
+
+I will be using logging from the standard library. Please, give me some guidelines regarding what I should log, which logs belong to which levels, etc.
