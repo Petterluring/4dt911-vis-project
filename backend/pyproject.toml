@@ -11,8 +11,8 @@ dependencies = [
     "fastapi>=0.141.0", # Requires Python>=3.10. Includes: Pydantic and Starlette.
     "uvicorn[standard]>=0.52.0", # Requires Python>=3.10.
     "mlflow-skinny>=3.16.0, <4.0.0", # Python>=3.10,
-    "psycopg[binary]>=3.3.6",
-    "SQLAlchemy>=2.0.54",
+    
+    "SQLAlchemy[asyncio, postgresql-psycopgbinary]>=2.1.4",
 ]
 
 [project.optional-dependencies]
@@ -20,7 +20,8 @@ dev = [
     "mypy>=2.3.0,<3.0.0",
     "ruff>=0.16.0,<0.17.0",
     "pytest>=9.1.0,<10.0.0",
-    "types-PyYAML>=6.0.12"
+    "types-PyYAML>=6.0.12",
+    "httpx2>=2.13.1"
 ]
 
 [tool.poetry]
@@ -35,7 +36,6 @@ testpaths = [
 strict = true
 files = [
     "app",
-    "test",
 ]
 
 [tool.ruff]
@@ -45,6 +45,9 @@ include = [
 ]
 
 line-length = 120
+
+[tool.ruff.lint.per-file-ignores]
+"test/**/*.py" = ["D103", "D102"]
 
 [tool.ruff.lint]
 select = [
