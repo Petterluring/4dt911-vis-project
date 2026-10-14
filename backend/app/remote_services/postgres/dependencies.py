@@ -1,33 +1,26 @@
 """Module for PostgreSQL dependencies."""
 
 from logging import getLogger
-from typing import Annotated, AsyncGenerator
+from typing import Annotated, AsyncGenerator, cast
 
-from fastapi import Depends
+from fastapi import Depends, Request
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from app.exceptions import DatabaseUnavailableException
 
-from .db_engine_factory import create_async_postgres_engine
-from .users import Users
-
 logger = getLogger(__name__)
 
-db_engine: AsyncEngine = create_async_postgres_engine(
-    Users.DEMO.load_user(),
-    kwargs={
-        "pool_size": 5,
-        "max_overflow": 10,
-        "pool_timeout": 10,
-        "pool_pre_ping": True
-    },
-)
+def get_db_engine(request: Request) -> AsyncEngine:
+    """Retrieve the database engine from application state."""
+    return cast(AsyncEngine, request.app.state.db_engine)
 
-async def get_connection() -> AsyncGenerator[AsyncConnection, None]:
+async def get_connection(
+        engine: Annotated[AsyncEngine, Depends(get_db_engine)]
+) -> AsyncGenerator[AsyncConnection, None]:
     """Get a connection from the global engine."""
     try:
-        async with db_engine.connect() as connection:
+        async with engine.connect() as connection:
             yield connection
     # TODO: Investigate what other exceptions might need to be caught here.
     except OperationalError as exc:
