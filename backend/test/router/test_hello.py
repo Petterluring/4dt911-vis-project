@@ -1,17 +1,26 @@
 """Module for testing hello route."""
 
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.router import hello
 
-client = TestClient(app)
+app = FastAPI()
+app.include_router(hello.router)
 
-def test_hello_route():
+
+@pytest.fixture
+def client() -> TestClient:
+    return TestClient(app)
+
+
+def test_hello_route(client: TestClient):
     response = client.get("/hello")
     assert response.status_code == 200
     assert response.json() == {"message": "Hello from FastAPI!"}
 
-def test_hello_world_route():
+def test_hello_world_route(client: TestClient):
     response = client.get("/hello_world")
     assert response.status_code == 200
     assert response.json() == {"message": "Hello, world!"}

@@ -3,16 +3,22 @@
 from collections.abc import AsyncGenerator
 from unittest.mock import AsyncMock, MagicMock
 
+import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from app.main import app
 from app.remote_services.postgres.dependencies import get_connection
+from app.router import health
 
-client = TestClient(app)
+app = FastAPI()
+app.include_router(health.router)
 
+@pytest.fixture
+def client() -> TestClient:
+    return TestClient(app)
 
-def test_fast_api_health():
+def test_fast_api_health(client: TestClient):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "healthy"}
@@ -29,12 +35,11 @@ async def override_get_connection() -> AsyncGenerator[AsyncConnection, None]:
     yield connection
 
 
-def test_health_db_success():
+def test_health_db_success(client: TestClient):
     app.dependency_overrides[get_connection] = override_get_connection
 
     try:
-        with TestClient(app) as client:
-            response = client.get("/health-db")
+        response = client.get("/health-db")
 
         assert response.status_code == 200
         assert response.json() == {
