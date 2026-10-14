@@ -1,5 +1,5 @@
 """Application routers."""
 
-from app.router import hello
+from app.router import health, hello
 
-__all__ = ["hello"]
+__all__ = ["hello", "health"]
