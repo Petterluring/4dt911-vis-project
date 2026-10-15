@@ -6,6 +6,8 @@ services:
     ports:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "${BACKEND_PORT}"]
+    volumes:
+      - ${HOME}/4dt911-resources:/root/4dt911-resources
     
   airbnb-explorer-app:
     build: ./frontend
