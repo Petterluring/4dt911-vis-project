@@ -27,3 +27,70 @@ Please help me to write pytests for the following python modules:
 * users.py - Test only the Users class by building an object and assert that attributes are configured correctly.
 * db_engine_factory.py - Test both factory methods by making sure that arguments are configured correctly. Especially test that the url is built correctly from a User instance.
 Create a test module with a "test_" for each module, followed by their filename, and store them in the test fodler. Put them in packages that reflects the same package structure inside the app package. Do not create some "test_app" package as root package in the test folder.
+
+Consider the current db setup in dependencies.py and main.py.
+The goal is now to create a demo endpoint that fetches 5 rows from a table named listings. Please, do the following:
+* Create a router module named 'airbnb' and create a endpoint that fetches 5 rows from the 'listings' table. Use the connection depency similar to how it is done in health.py.
+* Add the router to the app in main.py.
+* Explain some designs for where and how queries should be built. Should we build them directly inside the endpoint function? Or should be create a module that manages the queries?
+
+Lets explore 2., 3. and 4. I have created listings.py and definitions.py for storing queries related to listings table, and storing definitions of tables useing SQLAlchemy Core. Please create a table definition with the following schemantics:
+KolumnTypKommentar
+id bigint
+host_id bi int NULL
+listing_url text NULL
+picture_url text NULL
+latitude real NULL
+longitude real NULL
+property_type text NULL
+room_type text NULL
+accommodates integer NULL
+bedrooms integer NULL
+beds integer NULL
+bathrooms real NULL
+bathrooms_text text NULL
+price real NULL
+minimum_nights integer NULL
+maximum_nights integer NULL
+availability_30 integer NULL
+availability_60 integer NULL
+availability_90 integer NULL
+availability_365i nteger NULL
+number_of_reviews integer NULL
+number_of_reviews_ltm integer NULL
+number_of_reviews_l30d integer NULL
+first_review date NULL
+last_review date NULL
+reviews_per_month real NULL
+review_scores_rating real NULL
+review_scores_accuracy real NULL
+review_scores_cleanliness real NULL
+review_scores_checkin real NULL
+review_scores_communication real NULL
+review_scores_location real NULL
+review_scores_value real NULL
+deso_code text NULL
+district text NULL
+name text NULL
+
+Then create a query that allows the user to select from this table.
+
+Create a pydantic request class that acts as the request body for airbnb/listings. The user should be able to choose which columns to include, limitation of rows, and offset. But the class inside a package named requests inside router package. 
+
+Okay, lets test something new.
+1. Build a request body that allows the user to specify a list that may contain the following categories:
+districts = [
+"Bromma",
+"Enskede-Årsta-Vantör",
+"Farsta",
+"Hägersten-Älvsjö",
+"Hässelby-Vällingby",
+"Järva",
+"Kungsholmen",
+"Norra innerstaden",
+"Skarpnäck",
+"Skärholmen",
+"Södermalm",
+]
+2. Build a corresponding query that computes the average and median of the attribute 'price' for each category from the list.
+3. Build a new endpoint using the components in 1 and 2.

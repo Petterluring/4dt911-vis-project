@@ -21,6 +21,7 @@ class DBUser(BaseModel):
 class Users(Enum):
     """Enum representing PostgreSQL users with their corresponding YAML configuration files."""
     DEMO = POSTGRE_USERS / "demo_user.yaml"
+    AIRBNB = POSTGRE_USERS / "airbnb_user.yaml"
 
     def __init__(self, yaml_path: Path):
         self.yaml_path = yaml_path

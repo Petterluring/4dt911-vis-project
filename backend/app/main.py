@@ -10,14 +10,14 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.exception_handling import register_exception_handlers
 from app.remote_services.postgres.db_engine_factory import create_async_postgres_engine
 from app.remote_services.postgres.users import Users
-from app.router import health, hello
+from app.router import airbnb, health, hello
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application resources."""
     engine: AsyncEngine = create_async_postgres_engine(
-        Users.DEMO.load_user(),
+        Users.AIRBNB.load_user(),
         kwargs={
             "pool_size": 5,
             "max_overflow": 10,
@@ -46,4 +46,5 @@ app.add_middleware(
 register_exception_handlers(app)
 app.include_router(hello.router)
 app.include_router(health.router)
+app.include_router(airbnb.router)
 
