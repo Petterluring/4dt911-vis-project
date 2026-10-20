@@ -1,0 +1,56 @@
+"""Module for PostgreSQL table definitions."""
+
+from sqlalchemy import (
+    REAL,
+    BigInteger,
+    Column,
+    Date,
+    Integer,
+    MetaData,
+    Table,
+    Text,
+)
+
+metadata = MetaData()
+
+listings = Table(
+    "listings",
+    metadata,
+    Column("id", BigInteger, primary_key=True),
+    Column("host_id", BigInteger, nullable=True),
+    Column("listing_url", Text, nullable=True),
+    Column("picture_url", Text, nullable=True),
+    Column("latitude", REAL, nullable=True),
+    Column("longitude", REAL, nullable=True),
+    Column("property_type", Text, nullable=True),
+    Column("room_type", Text, nullable=True),
+    Column("accommodates", Integer, nullable=True),
+    Column("bedrooms", Integer, nullable=True),
+    Column("beds", Integer, nullable=True),
+    Column("bathrooms", REAL, nullable=True),
+    Column("bathrooms_text", Text, nullable=True),
+    Column("price", REAL, nullable=True),
+    Column("minimum_nights", Integer, nullable=True),
+    Column("maximum_nights", Integer, nullable=True),
+    Column("availability_30", Integer, nullable=True),
+    Column("availability_60", Integer, nullable=True),
+    Column("availability_90", Integer, nullable=True),
+    Column("availability_365", Integer, nullable=True),
+    Column("number_of_reviews", Integer, nullable=True),
+    Column("number_of_reviews_ltm", Integer, nullable=True),
+    Column("number_of_reviews_l30d", Integer, nullable=True),
+    Column("first_review", Date, nullable=True),
+    Column("last_review", Date, nullable=True),
+    Column("reviews_per_month", REAL, nullable=True),
+    Column("review_scores_rating", REAL, nullable=True),
+    Column("review_scores_accuracy", REAL, nullable=True),
+    Column("review_scores_cleanliness", REAL, nullable=True),
+    Column("review_scores_checkin", REAL, nullable=True),
+    Column("review_scores_communication", REAL, nullable=True),
+    Column("review_scores_location", REAL, nullable=True),
+    Column("review_scores_value", REAL, nullable=True),
+    Column("deso_code", Text, nullable=True),
+    Column("district", Text, nullable=True),
+    Column("name", Text, nullable=True),
+)
+
