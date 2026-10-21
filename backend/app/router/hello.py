@@ -11,7 +11,7 @@ async def hello_from_fast_api() -> dict[str, str]:
     return {"message": "Hello from FastAPI!"}
 
 
-@router.get("/hello_world")
+@router.get("/hello-world")
 async def hello_world() -> dict[str, str]:
     """Return a simple hello world message."""
     return {"message": "Hello, world!"}

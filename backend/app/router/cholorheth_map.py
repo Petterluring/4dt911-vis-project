@@ -13,7 +13,7 @@ from app.remote_services.postgres.queries.choropleth_map import (
 from app.router.requests.district import DistrictStatsRequest
 from app.router.requests.listings import ListingsRequest
 
-router = APIRouter(prefix="/choropleth_map", tags=["choropleth_map"])
+router = APIRouter(prefix="/choropleth-map", tags=["choropleth_map"])
 
 
 @router.post("/district-stats")
