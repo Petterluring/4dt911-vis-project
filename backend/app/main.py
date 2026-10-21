@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from app.exception_handling import register_exception_handlers
 from app.remote_services.postgres.db_engine_factory import create_async_postgres_engine
 from app.remote_services.postgres.users import Users
-from app.router import airbnb, health, hello
+from app.router import cholorheth_map, health, hello
 
 
 @asynccontextmanager
@@ -46,5 +46,5 @@ app.add_middleware(
 register_exception_handlers(app)
 app.include_router(hello.router)
 app.include_router(health.router)
-app.include_router(airbnb.router)
+app.include_router(cholorheth_map.router)
 
