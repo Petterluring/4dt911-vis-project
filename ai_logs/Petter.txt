@@ -109,3 +109,19 @@ Here are some notes:
 * Use review_scores_rating column for computing average review score
 * Put the query in choropleth_map.py in query package, and the enpoint in choropleth_map.py in the router package
 * Name the endpoint "/tooltip-statistics
+
+Build a query that returns the following metrics:
+**Scatterplot 1: Tourism Score vs. Airbnb Listing Count**
+- Tourism score
+- Number of Airbnb listings
+- District identifier
+**Scatterplot 2: Housing Prices vs. Airbnb Prices**
+- Average and median housing prices
+- Average and median Airbnb listing prices
+- District identifier
+Here are some notes. 
+* Put tourism score to 0 as it is not defined yet
+* The results from the query should be stored in a list of two json objects. Respective object should store scatterplot 1 and 2 metrics respectively. 
+* The metrics should be per district, similar to queries such as #sym:build_district_stats .
+* Store the query in scatterplots.py module in queries packet
+* Store endpoint in scatterplots.py in router package
