@@ -1,5 +1,5 @@
 """Package for PostgreSQL table definitions."""
 
-from .definitions import listings
+from .definitions import apartment_sales, listings, tourism_attractions
 
-__all__ = ["listings"]
+__all__ = ["apartment_sales", "listings", "tourism_attractions"]

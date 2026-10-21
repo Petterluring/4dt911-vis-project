@@ -94,3 +94,18 @@ districts = [
 ]
 2. Build a corresponding query that computes the average and median of the attribute 'price' for each category from the list.
 3. Build a new endpoint using the components in 1 and 2.
+
+Build a query and a corresponding enpoint returning the following data: 
+- Average housing price per square meter
+- Median nightly Airbnb price
+- Number of Airbnb listings
+- Tourism score
+- Average Airbnb rating
+- Tourist attractions
+Here are some notes:
+* Price per square meter must be derived from Selling_price and Livingspace_m2. 
+* Tourism score can be set to -1 for now as we have not defined what this is yet. 
+* Tourist attractions refer to the number of tourist attractions.
+* Use review_scores_rating column for computing average review score
+* Put the query in choropleth_map.py in query package, and the enpoint in choropleth_map.py in the router package
+* Name the endpoint "/tooltip-statistics
