@@ -46,3 +46,5 @@ async def get_tooltip_statistics(
     return await select_tooltip_statistics(
         connection, [district.value for district in request.districts]
     )
+
+

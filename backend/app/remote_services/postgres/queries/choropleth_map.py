@@ -155,7 +155,7 @@ def build_tooltip_statistics(districts: Sequence[str]) -> Select[Any]:
             airbnb.c.median_airbnb_price,
             airbnb.c.airbnb_listing_count,
             # Placeholder until the tourism score is defined.
-            literal(-1).label("tourism_score"),
+            literal(0).label("tourism_score"),
             attractions.c.tourist_attractions,
             airbnb.c.average_airbnb_rating,
         )
@@ -178,3 +178,5 @@ async def select_tooltip_statistics(
     """Fetch tooltip statistics for each given district."""
     result = await connection.execute(build_tooltip_statistics(districts))
     return [dict(row) for row in result.mappings().all()]
+
+

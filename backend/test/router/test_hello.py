@@ -21,7 +21,7 @@ def test_hello_route(client: TestClient):
     assert response.json() == {"message": "Hello from FastAPI!"}
 
 def test_hello_world_route(client: TestClient):
-    response = client.get("/hello_world")
+    response = client.get("/hello-world")
     assert response.status_code == 200
     assert response.json() == {"message": "Hello, world!"}
 
