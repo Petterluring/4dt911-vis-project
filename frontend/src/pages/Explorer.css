@@ -93,7 +93,6 @@
 .chart-empty { display: grid; place-items: center; min-height: 240px; color: var(--text-secondary); font-size: 13px; }
 .comparison-panel__footer { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--border); color: var(--text-secondary); font-size: 10px; }
 .point-key--selected { margin-left: var(--space-1); background: var(--selected); outline: 1px solid var(--text); }
-.comparison-panel__footer > span:last-child { margin-left: auto; }
 .panel-message { padding: var(--space-3); }
 .explorer--comparing .map-navigation { bottom: auto; top: 112px; right: 384px; }
 .explorer--comparing .district-card { padding: var(--space-2); }
@@ -114,7 +113,6 @@
   .comparison-panel__header h2 { font-size: 15px; }
   .comparison-panel__header { align-items: flex-start; }
   .scatterplot { padding: 0 var(--space-1); }
-  .comparison-panel__footer > span:last-child { margin-left: 0; width: 100%; }
 }
 @media (max-width: 900px) {
   .explorer { height: auto; min-height: 100dvh; overflow: visible; padding: var(--space-2); }

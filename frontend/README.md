@@ -125,9 +125,10 @@ all axes and map colour scales are linear. Districts missing either chart value
 are omitted from that chart, and the count of omitted districts is displayed.
 Neither outliers nor zero scores are removed, and points are not jittered.
 
-**Current backend limitation:** both tourism-score queries return a literal zero
-pending the definition of that metric. SD2 displays those zero values honestly
-and labels them as backend placeholders. No attraction-count substitute is used.
+Tourism scores are read directly from the backend's `tourism_score` field in
+both district tooltips and SD2. The frontend does not calculate or substitute
+scores, so backend updates appear without frontend changes. Zero remains a
+valid value; missing scores are handled as missing data.
 The attractions field in the tooltip is a count, as provided by the API.
 
 ### District boundaries and basemap

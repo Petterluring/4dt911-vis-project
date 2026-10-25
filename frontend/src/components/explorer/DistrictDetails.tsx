@@ -12,7 +12,7 @@ export default function DistrictDetails({ district, tooltips }: Props) {
             <div><dt>Average housing price</dt><dd>{formatNumber(data.average_housing_price_per_m2)} <small>SEK/m²</small></dd></div>
             <div><dt>Median Airbnb price</dt><dd>{formatNumber(data.median_airbnb_price)} <small>SEK/night</small></dd></div>
             <div><dt>Airbnb listings</dt><dd>{formatNumber(data.airbnb_listing_count)}</dd></div>
-            <div><dt>Tourism score (placeholder)</dt><dd>{formatNumber(data.tourism_score)}</dd></div>
+            <div><dt>Tourism score</dt><dd>{formatNumber(data.tourism_score)}</dd></div>
             <div><dt>Average Airbnb rating</dt><dd>{formatRating(data.average_airbnb_rating)}</dd></div>
             <div><dt>Tourist attractions</dt><dd>{formatNumber(data.tourist_attractions)}</dd></div>
           </dl>}

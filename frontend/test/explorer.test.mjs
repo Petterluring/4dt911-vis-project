@@ -101,7 +101,7 @@ test('comparison markup retains real zero scores, selection, missing counts and 
   assert.match(html, /Airbnb price \(SEK \/ night\)/);
   assert.match(html, /10 without complete data/);
   assert.match(html, /aria-pressed="true"/);
-  assert.match(html, /backend placeholders/);
+  assert.match(html, /Tourism score/);
 });
 
 
