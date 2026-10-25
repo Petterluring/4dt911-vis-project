@@ -3,9 +3,12 @@
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import Select, func, literal, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.remote_services.postgres.queries.tourism_score import (
+    build_tourism_score_subquery,
+)
 from app.remote_services.postgres.tables import (
     apartment_sales,
     listings,
@@ -145,8 +148,12 @@ def build_tooltip_statistics(districts: Sequence[str]) -> Select[Any]:
         .group_by(tourism_attractions.c.stadsdelsomrade)
         .subquery("attractions")
     )
+    tourism = build_tourism_score_subquery(districts)
     district = func.coalesce(
-        housing.c.district, airbnb.c.district, attractions.c.district
+        housing.c.district,
+        airbnb.c.district,
+        attractions.c.district,
+        tourism.c.district,
     )
     return (
         select(
@@ -154,8 +161,9 @@ def build_tooltip_statistics(districts: Sequence[str]) -> Select[Any]:
             housing.c.average_housing_price_per_m2,
             airbnb.c.median_airbnb_price,
             airbnb.c.airbnb_listing_count,
-            # Placeholder until the tourism score is defined.
-            literal(0).label("tourism_score"),
+            func.coalesce(tourism.c.tourism_score, 0.0).label(
+                "tourism_score"
+            ),
             attractions.c.tourist_attractions,
             airbnb.c.average_airbnb_rating,
         )
@@ -165,6 +173,16 @@ def build_tooltip_statistics(districts: Sequence[str]) -> Select[Any]:
             attractions,
             func.coalesce(housing.c.district, airbnb.c.district)
             == attractions.c.district,
+            full=True,
+        )
+        .outerjoin(
+            tourism,
+            func.coalesce(
+                housing.c.district,
+                airbnb.c.district,
+                attractions.c.district,
+            )
+            == tourism.c.district,
             full=True,
         )
         .order_by(district)

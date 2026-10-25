@@ -3,9 +3,12 @@
 from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import Select, func, literal, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.remote_services.postgres.queries.tourism_score import (
+    build_tourism_score_subquery,
+)
 from app.remote_services.postgres.tables import apartment_sales, listings
 
 
@@ -38,11 +41,16 @@ def build_scatterplot_stats(districts: Sequence[str]) -> Select[Any]:
         .group_by(listings.c.district)
         .subquery("airbnb")
     )
-    district = func.coalesce(housing.c.district, airbnb.c.district)
+    tourism = build_tourism_score_subquery(districts)
+    district = func.coalesce(
+        housing.c.district, airbnb.c.district, tourism.c.district
+    )
     return (
         select(
             district.label("district"),
-            literal(0).label("tourism_score"),
+            func.coalesce(tourism.c.tourism_score, 0.0).label(
+                "tourism_score"
+            ),
             func.coalesce(airbnb.c.airbnb_listing_count, 0).label(
                 "airbnb_listing_count"
             ),
@@ -54,6 +62,11 @@ def build_scatterplot_stats(districts: Sequence[str]) -> Select[Any]:
         .select_from(
             housing.join(
                 airbnb, housing.c.district == airbnb.c.district, full=True
+            ).join(
+                tourism,
+                func.coalesce(housing.c.district, airbnb.c.district)
+                == tourism.c.district,
+                full=True,
             )
         )
         .order_by(district)
