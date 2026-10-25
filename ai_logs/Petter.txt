@@ -1,3 +1,127 @@
 Review all the README files in root, backend, and folder directories. For each README. Give feedback on what you think is missing regarding content.
 
 Include both HelloFastApi.tsx and HelloWorld.tsx components (frontend/src/components/hello) in HelloWorldPage.tsx and HelloWorldApiPage.tsx pages in (frontend/src/pages/demos) such that they are essentially the same pages but with different styles. Rename these pages to HelloWorldFuture and HelloWorldRustic respectively. Rename the corresponding css files accordingly with the new names of the pages. 
+
+Build four different ci.yml files for github actions.
+* One stored in the frontend folder that lints the frontend project. The project is initialized with Node.js. A linting command is defined in package.json that can be triggered using 'npm run lint'. The ci should use this command. Should be triggered on feature/**/* branches.
+* One stored in the backend folder that lints and tests the backend project. Backend is a python project that is installed using poetry. The ci should run 'pytest', 'mypy' and 'ruff check' once dependencies are installed. Should be triggered on feature/**/* branches.
+* One stored in the root that triggers docker builds using the Dockerfiles in frontend and backend. The images should be stored in the image container.
+* And finally, a file that aggregates the above files such that all are executed.
+
+I would like to use a logger for my backend app. Can you give me alternatives on how I can configure one in python. I know for instance that python includes its own logger that comes along with the python installation.
+
+I will be using logging from the standard library. Please, give me some guidelines regarding what I should log, which logs belong to which levels, etc.
+
+Consider the following files:
+* health.py
+* hello.py
+* db_engine_factory.py
+* dependencies.py
+* config.py
+Explain how I can properly test these using pytests.
+Should I test the dependencies in some way? In that case, we will need to mock the the global engine. Does SQLAlchemy provide any mockup objects for database querying?
+
+Please help me to write pytests for the following python modules:
+* files.py - Test all functions. However, just test the happy path where values are loaded/returned correctly. Validation of paths are tested in the bullet point below.
+* validation.py - Test that paths are correctly validated.
+* users.py - Test only the Users class by building an object and assert that attributes are configured correctly.
+* db_engine_factory.py - Test both factory methods by making sure that arguments are configured correctly. Especially test that the url is built correctly from a User instance.
+Create a test module with a "test_" for each module, followed by their filename, and store them in the test fodler. Put them in packages that reflects the same package structure inside the app package. Do not create some "test_app" package as root package in the test folder.
+
+Consider the current db setup in dependencies.py and main.py.
+The goal is now to create a demo endpoint that fetches 5 rows from a table named listings. Please, do the following:
+* Create a router module named 'airbnb' and create a endpoint that fetches 5 rows from the 'listings' table. Use the connection depency similar to how it is done in health.py.
+* Add the router to the app in main.py.
+* Explain some designs for where and how queries should be built. Should we build them directly inside the endpoint function? Or should be create a module that manages the queries?
+
+Lets explore 2., 3. and 4. I have created listings.py and definitions.py for storing queries related to listings table, and storing definitions of tables useing SQLAlchemy Core. Please create a table definition with the following schemantics:
+KolumnTypKommentar
+id bigint
+host_id bi int NULL
+listing_url text NULL
+picture_url text NULL
+latitude real NULL
+longitude real NULL
+property_type text NULL
+room_type text NULL
+accommodates integer NULL
+bedrooms integer NULL
+beds integer NULL
+bathrooms real NULL
+bathrooms_text text NULL
+price real NULL
+minimum_nights integer NULL
+maximum_nights integer NULL
+availability_30 integer NULL
+availability_60 integer NULL
+availability_90 integer NULL
+availability_365i nteger NULL
+number_of_reviews integer NULL
+number_of_reviews_ltm integer NULL
+number_of_reviews_l30d integer NULL
+first_review date NULL
+last_review date NULL
+reviews_per_month real NULL
+review_scores_rating real NULL
+review_scores_accuracy real NULL
+review_scores_cleanliness real NULL
+review_scores_checkin real NULL
+review_scores_communication real NULL
+review_scores_location real NULL
+review_scores_value real NULL
+deso_code text NULL
+district text NULL
+name text NULL
+
+Then create a query that allows the user to select from this table.
+
+Create a pydantic request class that acts as the request body for airbnb/listings. The user should be able to choose which columns to include, limitation of rows, and offset. But the class inside a package named requests inside router package. 
+
+Okay, lets test something new.
+1. Build a request body that allows the user to specify a list that may contain the following categories:
+districts = [
+"Bromma",
+"Enskede-Årsta-Vantör",
+"Farsta",
+"Hägersten-Älvsjö",
+"Hässelby-Vällingby",
+"Järva",
+"Kungsholmen",
+"Norra innerstaden",
+"Skarpnäck",
+"Skärholmen",
+"Södermalm",
+]
+2. Build a corresponding query that computes the average and median of the attribute 'price' for each category from the list.
+3. Build a new endpoint using the components in 1 and 2.
+
+Build a query and a corresponding enpoint returning the following data: 
+- Average housing price per square meter
+- Median nightly Airbnb price
+- Number of Airbnb listings
+- Tourism score
+- Average Airbnb rating
+- Tourist attractions
+Here are some notes:
+* Price per square meter must be derived from Selling_price and Livingspace_m2. 
+* Tourism score can be set to -1 for now as we have not defined what this is yet. 
+* Tourist attractions refer to the number of tourist attractions.
+* Use review_scores_rating column for computing average review score
+* Put the query in choropleth_map.py in query package, and the enpoint in choropleth_map.py in the router package
+* Name the endpoint "/tooltip-statistics
+
+Build a query that returns the following metrics:
+**Scatterplot 1: Tourism Score vs. Airbnb Listing Count**
+- Tourism score
+- Number of Airbnb listings
+- District identifier
+**Scatterplot 2: Housing Prices vs. Airbnb Prices**
+- Average and median housing prices
+- Average and median Airbnb listing prices
+- District identifier
+Here are some notes. 
+* Put tourism score to 0 as it is not defined yet
+* The results from the query should be stored in a list of two json objects. Respective object should store scatterplot 1 and 2 metrics respectively. 
+* The metrics should be per district, similar to queries such as #sym:build_district_stats .
+* Store the query in scatterplots.py module in queries packet
+* Store endpoint in scatterplots.py in router package

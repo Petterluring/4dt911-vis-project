@@ -1,17 +1,24 @@
 :root {
+  --background: #F5F7F8;
+  --surface: #FFFFFF;
+  --text: #172B36;
+  --text-secondary: #526570;
+  --primary: #167D8D;
+  --primary-dark: #0E6370;
+  --selected: #E89A45;
+  --border: #DCE4E8;
+  --map-background: #E8F0F1;
+  --radius: 8px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --panel-shadow: 0 4px 24px #172B360D;
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
-
-body {
-  min-width: 320px;
-  min-height: 100vh;
-  margin: 0;
-}
-
-#root {
-  min-height: 100vh;
-}
+body { min-width: 320px; min-height: 100vh; margin: 0; }
+#root { min-height: 100vh; }

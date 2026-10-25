@@ -1,0 +1,29 @@
+name: Backend CI
+
+on:
+  push:
+    branches: ["feature/**"]
+    paths: 
+      - "backend/**/*.py"
+      - "backend/**/*.toml"
+      - ".github/workflows/backend-ci.yml"
+  workflow_call:
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v6
+      - run: pipx install poetry
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: poetry
+          cache-dependency-path: backend/poetry.lock
+      - run: poetry install --extras dev
+      - run: poetry run pytest
+      - run: poetry run mypy
+      - run: poetry run ruff check
