@@ -35,6 +35,6 @@ export default function ComparisonPanel({ resource, mode, onMode, selectedDistri
             xLabel="Housing price (SEK / sale)" yLabel="Airbnb price (SEK / night)" {...shared} />
         </div>}
     <footer className="comparison-panel__footer"><span className="point-key" /> One district <span className="point-key point-key--selected" /> Selected district
-      <span>Tourism scores are currently backend placeholders (0).</span></footer>
+    </footer>
   </section>;
 }
