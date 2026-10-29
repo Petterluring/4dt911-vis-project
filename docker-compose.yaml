@@ -5,14 +5,28 @@ services:
     build: ./backend
     ports:
       - "${BACKEND_PORT}:${BACKEND_PORT}"
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "${BACKEND_PORT}"]
     volumes:
-      - ${HOME}/4dt911-resources:/root/4dt911-resources
+      - ${HOME}/4dt911-resources:/root/4dt911-resources:ro
+    healthcheck:
+      test:
+      - CMD-SHELL
+      - >
+        curl -fsS http://localhost:${BACKEND_PORT}/health &&
+        curl -fsS http://localhost:${BACKEND_PORT}/health-db
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "${BACKEND_PORT}"]
+    
     
   airbnb-explorer-app:
     build: ./frontend
     ports:
       - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    depends_on:
+      airbnb-explorer-service:
+        condition: service_healthy
     command: ["serve", "-s", "dist", "-l", "${FRONTEND_PORT}"]
 
 
