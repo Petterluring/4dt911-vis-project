@@ -16,11 +16,14 @@ The documentation primarily serves as an internal reference for project members,
 ## Reading order
 We recommend the reader to read the documentation in the following order:
 1. This README
-2. setup.md
-3. 
-4. nginx/installation_and_setup.md
-5. nginx/authentication.md
-6. https/setup.md
+2. `setup.md`
+3. `docker/installation.md`
+4. `postgresql/installation.md`
+5. `mlflow/setup.md`
+6. `adminer/setup.md`
+7. `nginx/installation_and_setup.md`
+8. `nginx/authentication.md`
+9. `https/setup.md`
 
 ## Status
 
