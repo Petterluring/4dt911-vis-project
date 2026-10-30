@@ -4,7 +4,9 @@ LNU provides students with access to a CS cloud environment where they can creat
 
 Our virtual machine hosts the services required by the visualization analytics project, including MLflow.
 
-This directory contains documentation for creating and configuring the VM instance, and for configuring and deploying services on it.
+This directory contains documentation covering the creation and configuration of the virtual machine (VM), as well as the setup, configuration, and deployment of services hosted on it.
+
+The documentation primarily serves as an internal reference for project members, providing traceability of the infrastructure setup and configuration decisions. It is intended to help members understand how the environment was established and to support future maintenance, troubleshooting, and reconfiguration.
 
 ## VM Information
 
@@ -19,3 +21,8 @@ We recommend the reader to read the documentation in the following order:
 4. nginx/installation_and_setup.md
 5. nginx/authentication.md
 6. https/setup.md
+
+## Status
+
+- **Virtual machine:** Active and operational.
+- **Documentation:** Under development and continuously updated.

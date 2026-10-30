@@ -14,13 +14,43 @@ analytics project. It is built with python and FastAPI, and uses Uvicorn as the 
 
 The application runs on `http://localhost:8000`.
 
+## Application structure
+
+The backend application is organized into several modules to separate responsibilities and improve maintainability. The main application code is located in the `app/` directory, which has the following structure:
+
+```text
+app/
+├── exceptions/
+├── remote_services/
+├── router/
+├── utils/
+├── __init__.py
+├── exception_handling.py
+└── main.py
+```
+
+The main components are described below:
+
+- **`main.py`** – The entry point of the FastAPI application. Responsible for initializing the application, registering routers, and configuring application-level settings.
+- **`router/`** – Contains the API route definitions, including the endpoints exposed by the backend.
+- **`remote_services/`** – Contains functionality for communicating with external services, such as the PostgreSQL database and MLflow.
+- **`exceptions/`** – Defines custom exception classes used throughout the application.
+- **`exception_handling.py`** – Implements centralized exception handling to ensure consistent error responses.
+- **`utils/`** – Contains reusable utility functions and helper modules shared across the application.
+- **`__init__.py`** – Marks the `app` directory as a Python package.
+
+This modular structure separates API routing, external service communication, and exception handling, making the application easier to maintain, test, and extend.
+
 ## Setup with poetry
 
 From this directory, install Poetry if it is not already installed:
 
 ```bash
-python3 -m pip install --user poetry
+curl -sSL https://install.python-poetry.org | python3 - # Alternative 1
+pipx install poetry # Alternative 2
 ```
+
+Further [installation details](https://python-poetry.org/docs/#installing-with-pipx) can be found on python-poetry.org.
 
 Configure Poetry to create the virtual environment inside the project directory, rather than in Poetry's global cache. Run the following command from the project directory:
 
@@ -56,9 +86,6 @@ echo $HOME
 
 If configured correctly, the command should print the path to your home directory.
 
-### Testing connections
-TODO: Explain how to test
-
 ## Running the app
 
 Make sure that the the virtual environment is activated by running:
@@ -77,6 +104,12 @@ Once the server is running, the backend API is available at `http://localhost:80
 
 ```bash
 curl http://localhost:8000/health
+```
+
+To verify that the application can successfully connect to the database, execute the following command:
+
+```bash
+curl http://localhost:8000/health-db
 ```
 
 To explore and interact with the available API endpoints using the Swagger UI, open:
