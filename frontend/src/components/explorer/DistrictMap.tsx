@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent, PointerEvent } from 'react';
-import { select, zoom, zoomIdentity } from 'd3';
+import { select, zoom, zoomIdentity, zoomTransform } from 'd3';
 import type { ZoomBehavior } from 'd3';
+import type { ListingFocusRequest } from '../../utils/map';
 import type { District, DistrictGeometry, DistrictPrices, ListingLocation, PriceMetric } from '../../interfaces/explorer';
 import { CHART_COLORS, metricScale } from '../../utils/explorer';
-import { districtPath, fittedTransform, project, screenDistrictPath, visibleTiles } from '../../utils/map';
+import { districtPath, fittedTransform, focusedListingTransform, project, screenDistrictPath, visibleTiles } from '../../utils/map';
 import { MAP_CLICK_DISTANCE, markerRadii, canSelectListings, movedBeyondClick, nearestListing } from '../../utils/listing';
 interface Props {
   geometry: DistrictGeometry;
@@ -16,13 +17,14 @@ interface Props {
   selectedListingId: string | null;
   showListings: boolean;
   showBasemap: boolean;
-  comparisonOpen: boolean;
+  showDistricts: boolean;
+  focusRequest?: ListingFocusRequest | null;
   onHover: (district: District | null) => void;
   onSelect: (district: District) => void;
   onSelectListing: (listing: ListingLocation) => void;
 }
 export default function DistrictMap({ geometry, prices, listings, metric, selectedDistrict,
-  hoveredDistrict, selectedListingId, showListings, showBasemap, comparisonOpen, onHover, onSelect, onSelectListing }: Props) {
+  hoveredDistrict, selectedListingId, showListings, showBasemap, showDistricts, focusRequest, onHover, onSelect, onSelectListing }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -36,11 +38,12 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   const scale = useMemo(() => metricScale(prices, metric), [prices, metric]);
   const values = useMemo(() => new Map(prices.map(row => [row.district, row[metric]])), [prices, metric]);
   const paths = useMemo(() => {
+    if (!showDistricts) return [];
     const path = screenDistrictPath(transform);
     return geometry.features.map(feature => ({ district: feature.properties.district,
       path: path(feature) ?? '', center: transform.apply(districtPath.centroid(feature)),
     }));
-  }, [geometry, transform]);
+  }, [geometry, transform, showDistricts]);
   const tiles = useMemo(() => showBasemap ? visibleTiles(transform, size.width, size.height) : [], [transform, size, showBasemap]);
   useEffect(() => {
     if (!container.current) return;
@@ -61,9 +64,16 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       .on('zoom', event => setTransform(event.transform));
     element.call(behavior).on('dblclick.zoom', null);
     zoomBehavior.current = behavior;
-    element.call(behavior.transform, fittedTransform(geometry, size.width, size.height, comparisonOpen));
+    element.call(behavior.transform, fittedTransform(geometry, size.width, size.height));
     return () => { element.on('.zoom', null); zoomBehavior.current = null; };
-  }, [geometry, size, comparisonOpen]);
+  }, [geometry, size]);
+  useEffect(() => {
+    const element = svg.current, behavior = zoomBehavior.current;
+    if (!element || !behavior || !focusRequest) return;
+    select(element).call(behavior.transform, focusedListingTransform(
+      focusRequest.listing, size.width, size.height, zoomTransform(element).k,
+    ));
+  }, [focusRequest, geometry, size]);
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
@@ -120,10 +130,10 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   }
   function resetView() {
     if (svg.current && zoomBehavior.current) select(svg.current).call(zoomBehavior.current.transform,
-      fittedTransform(geometry, size.width, size.height, comparisonOpen));
+      fittedTransform(geometry, size.width, size.height));
   }
   return <div className="district-map" ref={container}>
-    <svg ref={svg} width={size.width} height={size.height} aria-label="Interactive Stockholm district map" focusable="false"
+    <svg ref={svg} width={size.width} height={size.height} aria-label={showDistricts ? 'Interactive Stockholm district map' : 'Interactive Stockholm listing map'} focusable="false"
       onDragStart={event => event.preventDefault()} onClickCapture={handleClick}
       onPointerDownCapture={event => {
         if (event.isPrimary) gesture.current = { start: [event.clientX, event.clientY], moved: false, active: true };
@@ -136,7 +146,7 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
           width={tile.size * transform.k + .5} height={tile.size * transform.k + .5}
           onError={() => setTileError(true)} />)}
       </g>
-      <g className="map-districts">
+      {showDistricts && <g className="map-districts">
         {paths.map(({ district, path }) => <path key={district} d={path} fillRule="evenodd"
           fill={selectedDistrict === district ? CHART_COLORS.selected : scale.color(values.get(district))}
           fillOpacity={showBasemap ? .7 : 1}
@@ -145,15 +155,15 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
           focusable="false" aria-label={district} data-selected={selectedDistrict === district}
           onMouseEnter={() => { if (!(gesture.current.active && gesture.current.moved)) onHover(district); }} onMouseLeave={() => onHover(null)}
           onClick={() => onSelect(district)}><title>{district}</title></path>)}
-      </g>
+      </g>}
     </svg>
     <canvas ref={canvas} className="listing-canvas" aria-hidden="true" />
-    <svg className="map-label-overlay" width={size.width} height={size.height} aria-hidden="true" focusable="false">
+    {showDistricts && <svg className="map-label-overlay" width={size.width} height={size.height} aria-hidden="true" focusable="false">
       <g className="map-labels" pointerEvents="none">
         {paths.map(({ district, center }) => <text key={district} x={center[0]} y={center[1]} textAnchor="middle"
           className={selectedDistrict === district ? 'is-selected' : ''}>{district}</text>)}
       </g>
-    </svg>
+    </svg>}
     <div className="map-navigation panel" aria-label="Map navigation">
       <div className="map-navigation__zoom">
         <button type="button" onClick={() => changeZoom(2)} aria-label="Zoom in">+</button>
@@ -166,8 +176,9 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       Some map tiles are unavailable. District layers remain usable.
       <button className="text-button" onClick={() => { setTileRevision(value => value + 1); setTileError(false); }}>Retry tiles</button>
     </div>}
-    <div className="map-attribution">District boundaries: City of Stockholm ·
-      {showBasemap && <> © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></>}
-    </div>
+    {(showDistricts || showBasemap) && <div className="map-attribution">
+      {showDistricts && <>District boundaries: City of Stockholm{showBasemap && ' · '}</>}
+      {showBasemap && <>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></>}
+    </div>}
   </div>;
 }

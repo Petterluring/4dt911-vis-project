@@ -60,8 +60,19 @@ When developing the frontend, follow these guidelines:
 
 ## SABA - Stockholm Airbnb Analytics (SD1 and SD2)
 
-The home page is a full-screen district map. Open **Compare districts** to show
-both scatterplots side by side. On narrow screens they stack below the map.
+The desktop dashboard keeps the map, left-side controls and listing ranking,
+right-side selection details, and both bottom scatterplots visible together.
+The colour legend sits beside the map controls. The ranking extends beneath both
+controls and legend, ending at the legend's right edge, as a compact sortable table. On desktop the two scatterplots together occupy two thirds of
+the available page width in a compact 220 to 260 px bottom dock. The average/median
+switch sits beside the price plot title. Point values appear in temporary hover
+or keyboard-focus tooltips; permanent readout rows, repeated axis/count notes and
+the bottom selection legend have been removed. Missing-data counts are summarized
+in the plot header and accessible description instead. The previous top banner and
+comparison toggle have been removed. The bottom-right area remains available
+for a later ML price prediction view; that feature is not implemented here.
+Lists and long detail cards scroll within their own panels. On smaller screens,
+sections stack to preserve readable maps, charts and controls.
 The existing demo pages remain at `/demos/hello-fast-api` and `/demos/hello-world`.
 
 ### Map layers and interactions
@@ -86,9 +97,42 @@ The existing demo pages remain at `/demos/hello-fast-api` and `/demos/hello-worl
   is selected across connected views. A map hint explains when listing clicks are enabled.
   Closing the card preserves the district selection. Hiding listings or choosing
   another district clears the listing selection. Dragging does not select items.
+- The **Districts** checkbox beside **Airbnb locations** and **Street map**
+  toggles the district layer, which is enabled initially. Disabling it hides
+  district fills, boundaries, names, the colour legend and district tooltips;
+  it clears the current district selection and hover, and disables the map metric
+  and district selectors. Listing details stay open, and listing clicks do not
+  select a district while this layer is hidden. Chart comparisons remain available.
+  Re-enabling restores the layer using the current metric. The viewport and zoom
+  are preserved when toggling; panning, zooming, Recenter and listing clicks still work.
 - The street map and listing layers can be independently hidden. If tiles fail,
   district boundaries and data still work. Backend failures show retry controls;
   no illustrative data is substituted.
+
+### Listing ranking and linked selection
+
+The table initially includes every located listing, including entries without a
+nightly price. Filters above the table combine minimum/maximum nightly price,
+minimum bedrooms, minimum guest capacity and room type. Bounds are inclusive;
+zero-bedroom studios are retained, and unknown values are excluded only when a
+filter on that field is active. Reset filters restores the full collection.
+The filtered collection is shared by the table and map markers. District selection
+remains a highlight, and panning or zooming does not change the result set.
+Changing a filter clears the listing selection and pending map focus.
+
+Click a numeric column header to sort price, rating, reviews, bedrooms or guests.
+Click again to reverse direction. Missing values stay last in both directions;
+ties use listing ID. The default is ascending nightly price. Rows are virtualized
+at 40 px to keep thousands of listings responsive. The count shows matches / total.
+On narrow screens the columns scroll horizontally, while the rows scroll vertically.
+
+Hover a row for 300 ms or focus it by keyboard to see a photo, full title, district,
+room/property type, beds, bathrooms and minimum stay in a floating preview.
+The preview closes on Escape, blur, pointer leave, scrolling or resizing.
+Click a row or press Enter/Space to select it, open details and focus its map
+location. Arrow keys, Home and End move keyboard focus between rows. Selecting a
+map marker scrolls its row into view. Map focus preserves closer zoom levels.
+The table and filters use existing listing fields without backend changes.
 
 ### API and metric definitions
 
@@ -101,7 +145,7 @@ coordinates and the following backend-supported summary columns: `id`, `name`,
 `accommodates`, `bedrooms`, `beds`, `bathrooms_text`, `review_scores_rating`,
 `number_of_reviews`, and `minimum_nights`. These are fetched with the paginated
 coordinates because the current endpoint has no listing-ID filter. No raw
-CSV-only field is requested. Pictures are loaded only for the selected listing;
+CSV-only field is requested. Pictures are loaded for visible ranking rows and the selected listing;
 missing or failed images display a photo placeholder. External links and images require valid
 HTTPS URLs without embedded credentials. The card groups the image, price and
 rating, capacity facts, property type and minimum stay, with a link to the listing.
@@ -158,6 +202,7 @@ existing TypeScript loader, with mocked HTTP responses and the real district
 geometry file. Tests cover numeric normalization, the split API envelope,
 pagination, invalid coordinates, duplicate IDs, failure/cancellation behavior,
 all boundary-name joins, missing-price colors, tile alignment, screen-space bounds,
-listing metadata, marker hit testing, drag thresholds, URL validation and chart markup.
+listing metadata, marker hit testing, drag thresholds, URL validation, ranking order,
+large-list rendering, listing focus coordinates, and the persistent dashboard structure.
 An actual backend and network access to the tile server are needed for a live
 integration and browser smoke test.
