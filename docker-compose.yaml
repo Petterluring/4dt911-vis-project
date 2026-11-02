@@ -3,8 +3,6 @@
 services:
   airbnb-explorer-service:
     build: ./backend
-    ports:
-      - "${BACKEND_PORT}:${BACKEND_PORT}"
     volumes:
       - ${HOME}/4dt911-resources:/root/4dt911-resources:ro
     healthcheck:
@@ -22,8 +20,6 @@ services:
     
   airbnb-explorer-app:
     build: ./frontend
-    ports:
-      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
     depends_on:
       airbnb-explorer-service:
         condition: service_healthy
