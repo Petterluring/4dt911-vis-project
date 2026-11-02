@@ -93,13 +93,15 @@ test('comparison markup retains real zero scores, selection, missing counts and 
       tourism: [{ district: 'Bromma', tourism_score: 0, airbnb_listing_count: 295 }, { district: 'Farsta', tourism_score: null, airbnb_listing_count: 10 }],
       prices: [{ district: 'Bromma', average_housing_price: 4000000, median_housing_price: 3340000, average_airbnb_price: 2500, median_airbnb_price: 2081 }],
     } },
-    mode: 'median', selectedDistrict: 'Bromma', hoveredDistrict: null,
+    mode: 'median', selectedDistrict: 'Bromma', hoveredDistrict: 'Bromma',
     onMode() {}, onHover() {}, onSelect() {}, onClose() {},
   }));
   assert.equal((html.match(/<circle /g) ?? []).length, 2);
   assert.match(html, /Housing price \(SEK \/ sale\)/);
   assert.match(html, /Airbnb price \(SEK \/ night\)/);
   assert.match(html, /10 without complete data/);
+  assert.match(html, /role="tooltip"/);
+  assert.doesNotMatch(html, /class="chart-readout"|class="chart-count"|comparison-panel__footer/);
   assert.match(html, /aria-pressed="true"/);
   assert.match(html, /Tourism score/);
 });
@@ -148,7 +150,7 @@ test('district paths stay in screen coordinates and selected districts retain ma
   const raw = JSON.parse(await readFile(new URL('../public/data/stockholm-districts-2025.geojson', import.meta.url), 'utf8'));
   globalThis.fetch = async () => reply(raw);
   const geometry = await api.fetchGeometry(signal());
-  const transform = map.fittedTransform(geometry, 1440, 900, false);
+  const transform = map.fittedTransform(geometry, 1440, 900);
   const screenPath = map.screenDistrictPath(transform);
   const [[x0, y0], [x1, y1]] = screenPath.bounds(geometry);
   assert.ok(x0 >= 0 && y0 >= 0 && x1 <= 1440 && y1 <= 900);
@@ -159,7 +161,7 @@ test('district paths stay in screen coordinates and selected districts retain ma
   const html = renderToStaticMarkup(createElement(DistrictMap, {
     geometry, prices: [], listings: [], metric: 'median_airbnb_price',
     selectedDistrict: 'Bromma', hoveredDistrict: null, selectedListingId: null,
-    showListings: true, showBasemap: true, comparisonOpen: false,
+    showListings: true, showBasemap: true, showDistricts: true,
     onHover() {}, onSelect() {}, onSelectListing() {},
   }));
   assert.equal((html.match(/<path /g) ?? []).length, 11);
@@ -195,4 +197,107 @@ test('markers stay small in overview, grow after zoom twelve and become clickabl
   assert.equal(canSelectListings(2 ** 14 - .01), false);
   assert.equal(canSelectListings(2 ** 14), true);
   assert.equal(canSelectListings(Infinity), false);
+});
+
+
+test('disabling districts removes map geometry and labels while preserving listings and navigation', async () => {
+  const raw = JSON.parse(await readFile(new URL('../public/data/stockholm-districts-2025.geojson', import.meta.url), 'utf8'));
+  globalThis.fetch = async () => reply(raw);
+  const geometry = await api.fetchGeometry(signal());
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { default: DistrictMap } = await server.ssrLoadModule('/src/components/explorer/DistrictMap.tsx');
+  const props = {
+    geometry, prices: [], listings: [], metric: 'median_airbnb_price',
+    selectedDistrict: 'Bromma', hoveredDistrict: 'Farsta', selectedListingId: null,
+    showListings: true, showBasemap: true,
+    onHover() {}, onSelect() {}, onSelectListing() {},
+  };
+  const withoutDistricts = renderToStaticMarkup(createElement(DistrictMap, { ...props, showDistricts: false }));
+  assert.doesNotMatch(withoutDistricts, /class="map-districts"|class="map-label-overlay"|<path /);
+  assert.match(withoutDistricts, /class="listing-canvas"/);
+  assert.match(withoutDistricts, /tile\.openstreetmap\.org/);
+  assert.match(withoutDistricts, /aria-label="Recenter map"/);
+  assert.match(withoutDistricts, /OpenStreetMap contributors/);
+  assert.doesNotMatch(withoutDistricts, /District boundaries:/);
+  const withDistricts = renderToStaticMarkup(createElement(DistrictMap, { ...props, showDistricts: true }));
+  assert.equal((withDistricts.match(/<path /g) ?? []).length, 11);
+  assert.match(withDistricts, /class="map-label-overlay"/);
+});
+
+test('listing rankings sort numeric values, keep missing values last and preserve source order', async () => {
+  const { rankListings } = await server.ssrLoadModule('/src/utils/ranking.ts');
+  const source = [
+    { id: '10', price: 200, review_scores_rating: 4.8, number_of_reviews: 20 },
+    { id: '2', price: 200, review_scores_rating: null, number_of_reviews: 0 },
+    { id: '3', price: null, review_scores_rating: 4.9, number_of_reviews: null },
+    { id: '4', price: 0, review_scores_rating: 4.8, number_of_reviews: 120 },
+  ];
+  const original = [...source];
+  assert.deepEqual(rankListings(source, 'price', 'asc').map(row => row.id), ['4', '2', '10', '3']);
+  assert.deepEqual(rankListings(source, 'price', 'desc').map(row => row.id), ['2', '10', '4', '3']);
+  assert.deepEqual(rankListings(source, 'review_scores_rating', 'desc').map(row => row.id), ['3', '4', '10', '2']);
+  assert.deepEqual(rankListings(source, 'number_of_reviews', 'desc').map(row => row.id), ['4', '10', '2', '3']);
+  assert.deepEqual(source, original);
+});
+test('large listing rankings render a bounded window and retain all records in list semantics', async () => {
+  const { listingWindow, LISTING_ROW_HEIGHT } = await server.ssrLoadModule('/src/utils/ranking.ts');
+  const window = listingWindow(4806, 1000 * LISTING_ROW_HEIGHT, 240);
+  assert.ok(window.start <= 1000 && window.end > 1000);
+  assert.ok(window.end - window.start < 20);
+  assert.equal(window.top + (window.end - window.start) * LISTING_ROW_HEIGHT + window.bottom, 4806 * LISTING_ROW_HEIGHT);
+  assert.deepEqual(listingWindow(0, 0, 240), { start: 0, end: 0, top: 0, bottom: 0 });
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { default: ListingRanking } = await server.ssrLoadModule('/src/components/explorer/ListingRanking.tsx');
+  const listings = Array.from({ length: 4806 }, (_, index) => ({ id: String(index + 1), name: `Listing ${index + 1}`, price: index, number_of_reviews: 0 }));
+  const html = renderToStaticMarkup(createElement(ListingRanking, {
+    resource: { status: 'success', data: listings }, listings, totalCount: listings.length,
+    filters: { minPrice: '', maxPrice: '', bedrooms: '', guests: '', roomType: '' }, roomTypes: [], onFilters() {}, selectedListingId: '2', onSelect() {},
+  }));
+  assert.match(html, /aria-rowcount="4807"/);
+  assert.match(html, /aria-selected="true"/);
+  assert.ok((html.match(/role="row"/g) ?? []).length < 20);
+  assert.match(html, /Price \/ night \(SEK\)/);
+});
+test('listing focus centres the point in the clear map area without zooming out of a close view', () => {
+  const listing = { latitude: 59.33, longitude: 18.06 };
+  for (const [width, height] of [[1440, 550], [800, 480], [360, 450]]) {
+    const viewport = map.mapViewport(width, height);
+    const transform = map.focusedListingTransform(listing, width, height, 1024);
+    const position = transform.apply(map.project(listing.longitude, listing.latitude));
+    assert.ok(Math.abs(position[0] - (viewport.left + viewport.width / 2)) < .001);
+    assert.ok(Math.abs(position[1] - (viewport.top + viewport.height / 2)) < .001);
+    assert.equal(transform.k, 2 ** 15);
+  }
+  assert.equal(map.focusedListingTransform(listing, 1440, 550, 2 ** 17).k, 2 ** 17);
+});
+test('dashboard always includes ranking and both scatterplots without a top banner or close button', async () => {
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { default: Explorer } = await server.ssrLoadModule('/src/pages/Explorer.tsx');
+  const html = renderToStaticMarkup(createElement(Explorer));
+  assert.match(html, /Listing ranking/);
+  assert.match(html, /id="district-comparison"/);
+  assert.doesNotMatch(html, /explorer-header|Compare districts|Close district comparison/);
+});
+
+test('listing filters combine inclusive bounds, preserve zero and exclude unknown values only for active fields', async () => {
+  const { filterListings, EMPTY_FILTERS, rankListings } = await server.ssrLoadModule('/src/utils/ranking.ts');
+  const listings = [
+    { id: '1', price: 0, bedrooms: 0, accommodates: 2, room_type: 'Private room' },
+    { id: '2', price: 200, bedrooms: 2, accommodates: 4, room_type: 'Entire home/apt' },
+    { id: '3', price: null, bedrooms: null, accommodates: null, room_type: null },
+    { id: '4', price: 400, bedrooms: 3, accommodates: 6, room_type: 'Entire home/apt' },
+  ];
+  assert.deepEqual(filterListings(listings, EMPTY_FILTERS), listings);
+  const ids = filters => filterListings(listings, { ...EMPTY_FILTERS, ...filters }).map(row => row.id);
+  assert.deepEqual(ids({ minPrice: '0', maxPrice: '0' }), ['1']);
+  assert.deepEqual(ids({ minPrice: '200', maxPrice: '400', bedrooms: '2', guests: '4', roomType: 'Entire home/apt' }), ['2', '4']);
+  assert.deepEqual(ids({ maxPrice: '200', bedrooms: '2' }), ['2']);
+  assert.deepEqual(ids({ minPrice: '500', maxPrice: '100' }), []);
+  assert.deepEqual(ids({ bedrooms: '0' }), ['1', '2', '4']);
+  assert.deepEqual(ids({ roomType: 'Private room' }), ['1']);
+  assert.deepEqual(rankListings(listings, 'bedrooms', 'desc').map(row => row.id), ['4', '2', '1', '3']);
+  assert.deepEqual(rankListings(listings, 'accommodates', 'asc').map(row => row.id), ['1', '2', '4', '3']);
 });
