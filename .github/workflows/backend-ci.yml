@@ -2,7 +2,7 @@ name: Backend CI
 
 on:
   push:
-    branches: ["feature/**"]
+    branches: ["feature/**", "fix/**"]
     paths: 
       - "backend/**/*.py"
       - "backend/**/*.toml"
