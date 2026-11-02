@@ -60,7 +60,9 @@ The project also requires access to the `4dt911-resources` folder, which contain
 
 ## Running the App with Docker Compose
 
-Make sure that the ports defined in the `.env` file are available before starting the application.
+Before starting the application, ensure that the Nginx port specified in the .env file is available on the host machine.
+
+The FRONTEND_PORT and BACKEND_PORT variables define ports used internally for communication between Docker containers over the Docker network. These ports are not exposed to the host machine and can be configured as needed to avoid conflicts with other services running within the Docker network.
 
 The backend and frontend projects each have a `Dockerfile` specifying how they are built. The `docker-compose.yaml` file builds and orchestrates these services together with an Nginx server, which routes HTTP requests to the appropriate service. In addition to defining the build process, the file specifies exposed ports, environment variables, container names, and other configuration.
 
@@ -76,7 +78,7 @@ docker ps
 ```
 
 
-Once the services have started, open `http://localhost:<PORT>` in a web browser. If Nginx is configured to use port 80, `http://localhost/` is sufficient.
+Once the services have started, open `http://localhost:<NGINX_PORT>` in a web browser. If Nginx is configured to use port 80, `http://localhost/` is sufficient.
 
 
 ## Git strategy
