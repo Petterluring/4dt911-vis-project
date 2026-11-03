@@ -112,11 +112,7 @@ To allow the current user to execute Docker commands without `sudo`, add the use
 sudo usermod -aG docker $USER
 ```
 
-The new group membership will take effect after starting a new login session. Alternatively, execute:
-
-```bash
-newgrp docker
-```
+The new group membership will take effect after starting a new login session.
 
 Verify that Docker can now be executed without `sudo`:
 
