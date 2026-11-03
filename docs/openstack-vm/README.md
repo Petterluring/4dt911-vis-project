@@ -24,6 +24,7 @@ We recommend the reader to read the documentation in the following order:
 7. `nginx/installation_and_setup.md`
 8. `nginx/authentication.md`
 9. `https/setup.md`
+10. `app-deployment/setup.md`
 
 ## Status
 
