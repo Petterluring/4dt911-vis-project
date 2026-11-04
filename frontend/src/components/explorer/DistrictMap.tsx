@@ -4,10 +4,17 @@ import { select, zoom, zoomIdentity, zoomTransform } from 'd3';
 import type { ZoomBehavior } from 'd3';
 import type { ListingFocusRequest } from '../../utils/map';
 import type { District, DistrictGeometry, DistrictPrices, ListingLocation, PriceMetric } from '../../interfaces/explorer';
-import { CHART_COLORS, metricScale } from '../../utils/explorer';
+import { CHART_COLORS, listingMetricScale, metricScale } from '../../utils/explorer';
 import { districtPath, fittedTransform, focusedListingTransform, project, screenDistrictPath, visibleTiles } from '../../utils/map';
 import { MAP_CLICK_DISTANCE, markerRadii, canSelectListings, movedBeyondClick, nearestListing } from '../../utils/listing';
+import { listingsInLasso, listingsInRectangle, selectionBounds } from '../../utils/selection';
+import type { Point } from '../../utils/selection';
+type SelectionTool = 'rectangle' | 'lasso';
 interface Props {
+  listingScale?: ReturnType<typeof listingMetricScale>;
+  onDetailZoom?: (active: boolean) => void;
+  groupIds?: ReadonlySet<string> | null;
+  onSelectGroup?: (ids: string[], add: boolean) => void;
   geometry: DistrictGeometry;
   prices: DistrictPrices[];
   listings: ListingLocation[];
@@ -24,7 +31,7 @@ interface Props {
   onSelectListing: (listing: ListingLocation) => void;
 }
 export default function DistrictMap({ geometry, prices, listings, metric, selectedDistrict,
-  hoveredDistrict, selectedListingId, showListings, showBasemap, showDistricts, focusRequest, onHover, onSelect, onSelectListing }: Props) {
+  hoveredDistrict, selectedListingId, showListings, showBasemap, showDistricts, focusRequest, onHover, onSelect, onSelectListing, groupIds, onSelectGroup, listingScale, onDetailZoom }: Props) {
   const container = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -32,18 +39,26 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   const gesture = useRef({ start: [0, 0] as [number, number], moved: false, active: false });
   const [size, setSize] = useState({ width: 1200, height: 800 });
   const [transform, setTransform] = useState(zoomIdentity);
+  const [selectionTool, setSelectionTool] = useState<SelectionTool | null>(null);
+  const [box, setBox] = useState<{ start: Point; end: Point } | null>(null);
+  const [lasso, setLasso] = useState<Point[]>([]);
+  const drag = useRef<{ id: number; start: Point; add: boolean; points: Point[] } | null>(null);
+  const drawingEnabled = selectionTool !== null && showListings && Boolean(onSelectGroup);
   const listingsSelectable = canSelectListings(transform.k);
+  const detailZoom = showListings && transform.k >= 2 ** 15;
+  const districtsVisible = showDistricts && !detailZoom;
+  useEffect(() => { onDetailZoom?.(detailZoom); if (detailZoom) onHover(null); }, [detailZoom, onDetailZoom, onHover]);
   const [tileError, setTileError] = useState(false);
   const [tileRevision, setTileRevision] = useState(0);
   const scale = useMemo(() => metricScale(prices, metric), [prices, metric]);
   const values = useMemo(() => new Map(prices.map(row => [row.district, row[metric]])), [prices, metric]);
   const paths = useMemo(() => {
-    if (!showDistricts) return [];
+    if (!districtsVisible) return [];
     const path = screenDistrictPath(transform);
     return geometry.features.map(feature => ({ district: feature.properties.district,
       path: path(feature) ?? '', center: transform.apply(districtPath.centroid(feature)),
     }));
-  }, [geometry, transform, showDistricts]);
+  }, [geometry, transform, districtsVisible]);
   const tiles = useMemo(() => showBasemap ? visibleTiles(transform, size.width, size.height) : [], [transform, size, showBasemap]);
   useEffect(() => {
     if (!container.current) return;
@@ -85,17 +100,26 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
     context.scale(ratio, ratio);
     context.clearRect(0, 0, size.width, size.height);
     if (!showListings) return;
-    context.fillStyle = CHART_COLORS.high;
-    context.globalAlpha = .65;
     const radii = markerRadii(transform.k);
-    context.beginPath();
-    for (const listing of listings) {
-      const [x, y] = transform.apply(project(listing.longitude, listing.latitude));
-      if (x < -radii.normal || y < -radii.normal || x > size.width + radii.normal || y > size.height + radii.normal) continue;
-      context.moveTo(x + radii.normal, y);
-      context.arc(x, y, radii.normal, 0, Math.PI * 2);
+    function drawMarkers(highlight: boolean) {
+      if (!context) return;
+      const radius = highlight ? radii.normal + 1 : radii.normal;
+      context.strokeStyle = highlight ? CHART_COLORS.selected : '#FFFFFF';
+      context.lineWidth = highlight ? 1.5 : .75;
+      context.globalAlpha = highlight ? .95 : groupIds ? .25 : .65;
+      for (const listing of listings) {
+        if (Boolean(groupIds?.has(listing.id)) !== highlight) continue;
+        const [x, y] = transform.apply(project(listing.longitude, listing.latitude));
+        if (x < -radius || y < -radius || x > size.width + radius || y > size.height + radius) continue;
+        context.beginPath();
+        context.fillStyle = listingScale?.color(listing) ?? CHART_COLORS.high;
+        context.arc(x, y, radius, 0, Math.PI * 2);
+        context.fill();
+        context.stroke();
+      }
     }
-    context.fill();
+    drawMarkers(false);
+    if (groupIds) drawMarkers(true);
     const selected = listings.find(listing => listing.id === selectedListingId);
     if (selected) {
       const [x, y] = transform.apply(project(selected.longitude, selected.latitude));
@@ -106,12 +130,12 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       context.fill();
       context.beginPath();
       context.arc(x, y, radii.selected, 0, Math.PI * 2);
-      context.fillStyle = CHART_COLORS.selected;
-      context.strokeStyle = '#172B36';
+      context.fillStyle = listingScale?.color(selected) ?? CHART_COLORS.high;
+      context.strokeStyle = CHART_COLORS.selected;
       context.lineWidth = 2;
       context.fill(); context.stroke();
     }
-  }, [listings, transform, size, showListings, selectedListingId]);
+  }, [listings, transform, size, showListings, selectedListingId, groupIds, listingScale]);
   function updateGesture(event: PointerEvent<SVGSVGElement>) {
     if (gesture.current.active && movedBeyondClick(gesture.current.start, [event.clientX, event.clientY])) gesture.current.moved = true;
   }
@@ -120,7 +144,7 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
     if (gesture.current.moved) { event.preventDefault(); event.stopPropagation(); return; }
     if (!showListings || !listingsSelectable) return;
     const bounds = event.currentTarget.getBoundingClientRect();
-    const listing = nearestListing(listings, transform, [event.clientX - bounds.left, event.clientY - bounds.top]);
+    const listing = nearestListing(groupIds ? listings.filter(item => groupIds.has(item.id)) : listings, transform, [event.clientX - bounds.left, event.clientY - bounds.top]);
     if (listing) {
       event.stopPropagation(); onHover(null); onSelectListing(listing);
     }
@@ -132,8 +156,20 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
     if (svg.current && zoomBehavior.current) select(svg.current).call(zoomBehavior.current.transform,
       fittedTransform(geometry, size.width, size.height));
   }
+  function boxPoint(event: PointerEvent<HTMLDivElement>): Point {
+    const bounds = event.currentTarget.getBoundingClientRect();
+    return [Math.max(0, Math.min(size.width, event.clientX - bounds.left)),
+      Math.max(0, Math.min(size.height, event.clientY - bounds.top))];
+  }
+  function cancelDrawing() { drag.current = null; setBox(null); setLasso([]); setSelectionTool(null); }
+  useEffect(() => {
+    if (!drawingEnabled) return;
+    const escape = (event: KeyboardEvent) => { if (event.key === 'Escape') cancelDrawing(); };
+    window.addEventListener('keydown', escape);
+    return () => window.removeEventListener('keydown', escape);
+  }, [drawingEnabled]);
   return <div className="district-map" ref={container}>
-    <svg ref={svg} width={size.width} height={size.height} aria-label={showDistricts ? 'Interactive Stockholm district map' : 'Interactive Stockholm listing map'} focusable="false"
+    <svg ref={svg} width={size.width} height={size.height} aria-label={districtsVisible ? 'Interactive Stockholm district map' : 'Interactive Stockholm listing map'} focusable="false"
       onDragStart={event => event.preventDefault()} onClickCapture={handleClick}
       onPointerDownCapture={event => {
         if (event.isPrimary) gesture.current = { start: [event.clientX, event.clientY], moved: false, active: true };
@@ -146,7 +182,7 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
           width={tile.size * transform.k + .5} height={tile.size * transform.k + .5}
           onError={() => setTileError(true)} />)}
       </g>
-      {showDistricts && <g className="map-districts">
+      {districtsVisible && <g className="map-districts">
         {paths.map(({ district, path }) => <path key={district} d={path} fillRule="evenodd"
           fill={selectedDistrict === district ? CHART_COLORS.selected : scale.color(values.get(district))}
           fillOpacity={showBasemap ? .7 : 1}
@@ -158,26 +194,83 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       </g>}
     </svg>
     <canvas ref={canvas} className="listing-canvas" aria-hidden="true" />
-    {showDistricts && <svg className="map-label-overlay" width={size.width} height={size.height} aria-hidden="true" focusable="false">
+    {districtsVisible && <svg className="map-label-overlay" width={size.width} height={size.height} aria-hidden="true" focusable="false">
       <g className="map-labels" pointerEvents="none">
         {paths.map(({ district, center }) => <text key={district} x={center[0]} y={center[1]} textAnchor="middle"
           className={selectedDistrict === district ? 'is-selected' : ''}>{district}</text>)}
       </g>
     </svg>}
+    {drawingEnabled && <div className="map-box-overlay" aria-hidden="true"
+      onPointerDown={event => {
+        if (!event.isPrimary || event.button !== 0) return;
+        const start = boxPoint(event);
+        drag.current = { id: event.pointerId, start, add: event.shiftKey, points: [start] };
+        event.currentTarget.setPointerCapture(event.pointerId);
+        if (selectionTool === 'lasso') setLasso([start]); else setBox({ start, end: start });
+      }}
+      onPointerMove={event => {
+        const current = drag.current;
+        if (!current || current.id !== event.pointerId) return;
+        const point = boxPoint(event);
+        if (selectionTool === 'lasso') {
+          const last = current.points[current.points.length - 1];
+          if (Math.hypot(point[0] - last[0], point[1] - last[1]) >= 3) {
+            current.points.push(point);
+            setLasso([...current.points]);
+          }
+        } else setBox({ start: current.start, end: point });
+      }}
+      onPointerUp={event => {
+        const current = drag.current;
+        if (!current || current.id !== event.pointerId) return;
+        const end = boxPoint(event);
+        const points = [...current.points, end];
+        const bounds = selectionTool === 'lasso' ? {
+          width: Math.max(...points.map(point => point[0])) - Math.min(...points.map(point => point[0])),
+          height: Math.max(...points.map(point => point[1])) - Math.min(...points.map(point => point[1])),
+        } : selectionBounds(current.start, end);
+        if (bounds.width >= 4 && bounds.height >= 4 && (selectionTool !== 'lasso' || points.length >= 3)) {
+          const selected = selectionTool === 'lasso' ? listingsInLasso(listings, transform, points)
+            : listingsInRectangle(listings, transform, current.start, end);
+          onSelectGroup?.(selected.map(item => item.id), current.add);
+          cancelDrawing();
+        } else { drag.current = null; setBox(null); setLasso([]); }
+      }}
+      onPointerCancel={cancelDrawing} onLostPointerCapture={() => { drag.current = null; setBox(null); setLasso([]); }}>
+      {lasso.length > 1 && <svg className="map-lasso-preview" width={size.width} height={size.height}>
+        <polygon points={lasso.map(point => point.join(',')).join(' ')} />
+      </svg>}
+      {box && <div className="map-selection-box" style={selectionBounds(box.start, box.end)} />}
+    </div>}
     <div className="map-navigation panel" aria-label="Map navigation">
       <div className="map-navigation__zoom">
         <button type="button" onClick={() => changeZoom(2)} aria-label="Zoom in">+</button>
         <button type="button" onClick={() => changeZoom(.5)} aria-label="Zoom out">−</button>
       </div>
       <button className="recenter-button" type="button" onClick={resetView} title="Fit all Stockholm districts" aria-label="Recenter map">Recenter</button>
-      {showListings && <p className="map-navigation__hint" role="status">{listingsSelectable ? 'Click a listing to explore' : 'Zoom in to select listings'}</p>}
+      {onSelectGroup && showListings && <div className="map-selection-tools" role="group" aria-label="Listing selection tools">
+        {(['rectangle', 'lasso'] as const).map(tool => <button key={tool} type="button"
+          aria-pressed={drawingEnabled && selectionTool === tool}
+          title={tool === 'rectangle' ? 'Draw a rectangle' : 'Draw a freehand lasso'}
+          onClick={() => {
+            cancelDrawing();
+            if (selectionTool !== tool) { onHover(null); setSelectionTool(tool); }
+          }}>
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            {tool === 'rectangle' ? <rect x="3" y="4" width="14" height="12" rx="1" strokeDasharray="3 2" />
+              : <><path d="M6 13C1 12 2 5 8 4c5-2 10 1 10 5s-5 6-10 5" /><path d="M8 14c-1-3-5-2-4 1s6 0 5 3" /></>}
+          </svg>
+          {tool === 'rectangle' ? 'Rectangle' : 'Lasso'}
+        </button>)}
+      </div>}
+      {drawingEnabled ? <p className="map-navigation__hint" role="status">{selectionTool === 'lasso' ? 'Draw around listings.' : 'Drag a box.'} Hold Shift to add.</p> : showListings && <p className="map-navigation__hint" role="status">{listingsSelectable ? 'Click a listing to explore' : 'Zoom in to select listings'}</p>}
     </div>
     {showBasemap && tileError && <div className="tile-error panel" role="status">
       Some map tiles are unavailable. District layers remain usable.
       <button className="text-button" onClick={() => { setTileRevision(value => value + 1); setTileError(false); }}>Retry tiles</button>
     </div>}
-    {(showDistricts || showBasemap) && <div className="map-attribution">
-      {showDistricts && <>District boundaries: City of Stockholm{showBasemap && ' · '}</>}
+    {(districtsVisible || showBasemap) && <div className="map-attribution">
+      {districtsVisible && <>District boundaries: City of Stockholm{showBasemap && ' · '}</>}
       {showBasemap && <>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></>}
     </div>}
   </div>;

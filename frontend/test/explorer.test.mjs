@@ -252,7 +252,7 @@ test('large listing rankings render a bounded window and retain all records in l
   const { default: ListingRanking } = await server.ssrLoadModule('/src/components/explorer/ListingRanking.tsx');
   const listings = Array.from({ length: 4806 }, (_, index) => ({ id: String(index + 1), name: `Listing ${index + 1}`, price: index, number_of_reviews: 0 }));
   const html = renderToStaticMarkup(createElement(ListingRanking, {
-    resource: { status: 'success', data: listings }, listings, totalCount: listings.length,
+    resource: { status: 'success', data: listings }, listings, allListings: listings,
     filters: { minPrice: '', maxPrice: '', bedrooms: '', guests: '', roomType: '' }, roomTypes: [], onFilters() {}, selectedListingId: '2', onSelect() {},
   }));
   assert.match(html, /aria-rowcount="4807"/);
@@ -283,7 +283,7 @@ test('dashboard always includes ranking and both scatterplots without a top bann
 });
 
 test('listing filters combine inclusive bounds, preserve zero and exclude unknown values only for active fields', async () => {
-  const { filterListings, EMPTY_FILTERS, rankListings } = await server.ssrLoadModule('/src/utils/ranking.ts');
+  const { filterListings, EMPTY_FILTERS, rankListings, LISTING_RANGES, listingRangeMaximum } = await server.ssrLoadModule('/src/utils/ranking.ts');
   const listings = [
     { id: '1', price: 0, bedrooms: 0, accommodates: 2, room_type: 'Private room' },
     { id: '2', price: 200, bedrooms: 2, accommodates: 4, room_type: 'Entire home/apt' },
@@ -297,7 +297,45 @@ test('listing filters combine inclusive bounds, preserve zero and exclude unknow
   assert.deepEqual(ids({ maxPrice: '200', bedrooms: '2' }), ['2']);
   assert.deepEqual(ids({ minPrice: '500', maxPrice: '100' }), []);
   assert.deepEqual(ids({ bedrooms: '0' }), ['1', '2', '4']);
+  assert.equal(listingRangeMaximum(listings, { ...EMPTY_FILTERS, bedrooms: '3', maxPrice: '200' }, LISTING_RANGES[1]), 2);
+  assert.equal(listingRangeMaximum(listings, { ...EMPTY_FILTERS, minPrice: '500' }, LISTING_RANGES[2]), null);
   assert.deepEqual(ids({ roomType: 'Private room' }), ['1']);
   assert.deepEqual(rankListings(listings, 'bedrooms', 'desc').map(row => row.id), ['4', '2', '1', '3']);
   assert.deepEqual(rankListings(listings, 'accommodates', 'asc').map(row => row.id), ['1', '2', '4', '3']);
+});
+
+test('rectangle selection uses projected marker positions and accepts reverse drags', async () => {
+  const { listingsInRectangle } = await server.ssrLoadModule('/src/utils/selection.ts');
+  const listings = [{ id: '1', longitude: 18, latitude: 59 }, { id: '2', longitude: 19, latitude: 59 }];
+  const [x, y] = map.project(18, 59);
+  const transform = { apply: ([a, b]) => [a * 2 + 10, b * 2 + 20] };
+  const [left, top] = transform.apply([x, y]);
+  assert.deepEqual(listingsInRectangle(listings, transform, [left + .1, top + .1], [left, top]).map(item => item.id), ['1']);
+  assert.deepEqual(listingsInRectangle(listings, transform, [0, 0], [1, 1]), []);
+});
+
+test('group summaries use known values and retain zero bedrooms and unknown categories', async () => {
+  const { summarizeListings } = await server.ssrLoadModule('/src/utils/selection.ts');
+  const summary = summarizeListings([
+    { price: 100, review_scores_rating: 4, bedrooms: 0, accommodates: 2, district: 'Farsta', room_type: 'Private room' },
+    { price: 300, review_scores_rating: null, bedrooms: 1, accommodates: 4, district: 'Farsta', room_type: null },
+    { price: null, review_scores_rating: 5, bedrooms: null, accommodates: null, district: null, room_type: 'Private room' },
+  ]);
+  assert.equal(summary.medianPrice, 200);
+  assert.equal(summary.averageRating, 4.5);
+  assert.equal(summary.medianBedrooms, .5);
+  assert.equal(summary.medianGuests, 3);
+  assert.deepEqual(summary.districts, [['Farsta', 2], ['Unknown', 1]]);
+  assert.deepEqual(summary.roomTypes, [['Private room', 2], ['Unknown', 1]]);
+  assert.equal(summarizeListings([]).medianPrice, null);
+});
+
+test('lasso includes points inside a concave shape but excludes its cutout', async () => {
+  const { listingsInLasso } = await server.ssrLoadModule('/src/utils/selection.ts');
+  const listings = [{ id: 'inside', longitude: 18, latitude: 59 }, { id: 'cutout', longitude: 19, latitude: 59 }];
+  const [x, y] = map.project(18, 59);
+  const transform = { apply: ([a, b]) => [(a - x) * 10 + 1, (b - y) * 10 + 3] };
+  const lasso = [[0, 0], [10, 0], [10, 2], [4, 2], [4, 6], [0, 6]];
+  assert.deepEqual(listingsInLasso(listings, transform, lasso).map(item => item.id), ['inside']);
+  assert.deepEqual(listingsInLasso(listings, transform, lasso.slice(0, 2)), []);
 });
