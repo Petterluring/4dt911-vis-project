@@ -125,3 +125,57 @@ Here are some notes.
 * The metrics should be per district, similar to queries such as #sym:build_district_stats .
 * Store the query in scatterplots.py module in queries packet
 * Store endpoint in scatterplots.py in router package
+
+
+
+CATEGORICAL_COLUMNS = ["room_type", "district"]
+NUMERICAL_COLUMNS = ["accommodates", "bedrooms", "beds"]
+
+def distance(hypo_listing: dict, listings: pd.DataFrame):
+    distances = pd.Series(
+        0.0, index=listings.index, dtype=float
+    )
+
+    # Categorical distances
+    for category in CATEGORICAL_COLUMNS:
+        if hypo_listing[category] is None:
+            continue
+
+        distances += (
+            listings[category] != hypo_listing[category]
+        ).astype(float)
+
+    # Calculate IQR scales
+    values = listings[NUMERICAL_COLUMNS].astype(float)
+
+    numeric_scales = (
+        values.quantile(0.75)
+        - values.quantile(0.25)
+    )
+
+    # Convert hypothetical listing values to floats
+    query_values = (
+        pd.Series(hypo_listing)[NUMERICAL_COLUMNS]
+        .astype(float)
+    )
+
+    # Calculate normalized differences
+    differences = (
+        values - query_values
+    ) / numeric_scales.replace(0, 1.0)
+
+    # Handle missing values
+    differences = differences.abs().clip(upper=2.0).fillna(2.0)
+
+    # Calculate Euclidean distances
+    distances += np.sqrt(
+        differences.pow(2).sum(axis=1)
+    )
+
+    return distances.sort_values()
+
+* Implement a query in queries/listing_comparison.py that executes the same functionality as in the provided function.
+* Use the fields in #sym:HypotheticalListingComparison as input.
+* Remark that the query should return the top n listings. 
+* Make also sure that if some input argument is set to None, then we don't include that field in the distance calculation.
+* Use the listings table: #sym:listings 
