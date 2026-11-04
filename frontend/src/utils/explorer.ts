@@ -1,6 +1,6 @@
 import { scaleSequential, interpolateRgb } from 'd3';
 import { DISTRICTS } from '../interfaces/explorer';
-import type { District, PriceMetric, DistrictPrices, PriceMode } from '../interfaces/explorer';
+import type { District, PriceMetric, DistrictPrices, PriceMode, ListingLocation } from '../interfaces/explorer';
 
 export const METRICS: Record<PriceMetric, { label: string; unit: string }> = {
   average_housing_price: { label: 'Average housing price', unit: 'SEK / sale' },
@@ -38,4 +38,25 @@ export function metricScale(prices: DistrictPrices[], metric: PriceMetric) {
   const max = values.length ? Math.max(...values) : null;
   const scale = scaleSequential(interpolateRgb(CHART_COLORS.low, CHART_COLORS.high)).domain([min ?? 0, max ?? 1]).clamp(true);
   return { min, max, color: (value: number | null | undefined) => value == null ? CHART_COLORS.missing : scale(value) };
+}
+
+export const LISTING_COLORS = { low: '#A178DB', high: '#3A176C', missing: '#87969C' };
+
+export function listingMetricScale(listings: ListingLocation[], prices: DistrictPrices[], metric: PriceMetric) {
+  const housing = metric.endsWith('housing_price');
+  const districts = new Map(prices.map(row => [row.district, row[metric]]));
+  const valueFor = (listing: ListingLocation) =>
+    housing ? (listing.district ? districts.get(listing.district) : null) : listing.price;
+  let min: number | null = null, max: number | null = null;
+  for (const listing of listings) {
+    const value = valueFor(listing);
+    if (value == null || !Number.isFinite(value) || value < 0) continue;
+    min = Math.min(min ?? value, value);
+    max = Math.max(max ?? value, value);
+  }
+  const scale = scaleSequential(interpolateRgb(LISTING_COLORS.low, LISTING_COLORS.high)).domain([Math.log1p(min ?? 0), Math.log1p(max ?? 1)]).clamp(true);
+  return { housing, min, max, color: (listing: ListingLocation) => {
+    const value = valueFor(listing);
+    return value == null || !Number.isFinite(value) || value < 0 ? LISTING_COLORS.missing : scale(Math.log1p(value));
+  } };
 }

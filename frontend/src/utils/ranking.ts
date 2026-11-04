@@ -10,8 +10,21 @@ export function filterListings(listings: ListingLocation[], filters: ListingFilt
   const matches = (value: number | null, bound: string, maximum = false) => bound === '' ||
     (value != null && Number.isFinite(value) && (maximum ? value <= Number(bound) : value >= Number(bound)));
   return listings.filter(listing => matches(listing.price, filters.minPrice) && matches(listing.price, filters.maxPrice, true) &&
-    matches(listing.bedrooms, filters.bedrooms) && matches(listing.accommodates, filters.guests) &&
+    matches(listing.bedrooms, filters.bedrooms) &&
+    matches(listing.accommodates, filters.guests) &&
     (!filters.roomType || listing.room_type === filters.roomType));
+}
+export const LISTING_RANGES = [
+  { label: 'Price / night (SEK)', field: 'price', from: 'minPrice', to: 'maxPrice' },
+  { label: 'Bedrooms', field: 'bedrooms', from: 'bedrooms' },
+  { label: 'Guests', field: 'accommodates', from: 'guests' },
+] as const;
+export function listingRangeMaximum(listings: ListingLocation[], filters: ListingFilters, range: typeof LISTING_RANGES[number]) {
+  const candidates = filterListings(listings, { ...filters, [range.from]: '', ...('to' in range ? { [range.to]: '' } : {}) });
+  return candidates.reduce<number | null>((max, listing) => {
+    const value = listing[range.field];
+    return value != null && Number.isFinite(value) && value >= 0 ? Math.max(max ?? 0, Math.ceil(value)) : max;
+  }, null);
 }
 export const LISTING_ROW_HEIGHT = 40;
 const idOrder = new Intl.Collator('en', { numeric: true });

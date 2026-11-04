@@ -113,7 +113,10 @@ The existing demo pages remain at `/demos/hello-fast-api` and `/demos/hello-worl
 
 The table initially includes every located listing, including entries without a
 nightly price. Filters above the table combine minimum/maximum nightly price,
-minimum bedrooms, minimum guest capacity and room type. Bounds are inclusive;
+minimum bedrooms and guest capacity, and room type. Price has two handles on
+one track; bedrooms and guests each have a single handle. Each slider uses the
+largest value allowed by the other filters. The rank column follows the current
+filter and sort order. Bounds are inclusive;
 zero-bedroom studios are retained, and unknown values are excluded only when a
 filter on that field is active. Reset filters restores the full collection.
 The filtered collection is shared by the table and map markers. District selection
@@ -206,3 +209,15 @@ listing metadata, marker hit testing, drag thresholds, URL validation, ranking o
 large-list rendering, listing focus coordinates, and the persistent dashboard structure.
 An actual backend and network access to the tile server are needed for a live
 integration and browser smoke test.
+
+### Select listings on the map
+
+Choose **Rectangle** or **Lasso** beside the map zoom controls and drag over
+listing markers. The lasso closes on release. A new shape replaces the current
+group; hold Shift while dragging to add listings. Escape or clicking the active
+tool exits drawing mode.
+The table and summary use the selected listings that pass the active filters.
+The summary reports medians for price, bedrooms and capacity, mean listing rating,
+and counts by district and room type. Missing values are omitted from numeric
+aggregates. Hover or focus a row to preview that listing, or select it to open
+its details. **Clear group** restores the full filtered table.
