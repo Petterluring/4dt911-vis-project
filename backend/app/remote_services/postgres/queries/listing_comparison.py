@@ -35,7 +35,12 @@ def build_listing_comparison(
     ]
 
     # Compute the IQR scales for numerical columns
-    query = select(listings)
+    if hypothetical_listing.columns is None:
+        selected_columns = list(listings.c)
+    else:
+        selected_columns = [listings.c[name] for name in hypothetical_listing.columns]
+
+    query = select(*selected_columns)
     if numerical_fields:
         numeric_scales = (
             select(
@@ -49,6 +54,8 @@ def build_listing_comparison(
             )
             .subquery("numeric_scales")
         )
+
+        # Compute the squared differences for numerical columns, scaled by the IQR.
         squared_differences = []
         for column_name in numerical_fields:
             scale = case(
@@ -59,8 +66,8 @@ def build_listing_comparison(
                 cast(listings.c[column_name], Float) - values[column_name]
             ) / scale
             clipped_difference = func.coalesce(
-                func.least(func.abs(difference), literal(2.0)),
-                literal(2.0),
+                func.least(func.abs(difference), literal(3.0)),
+                literal(3.0),
             )
             squared_differences.append(
                 clipped_difference * clipped_difference
