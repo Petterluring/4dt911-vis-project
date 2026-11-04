@@ -1,7 +1,9 @@
 """Module for defining hypothetical listing request data and validation."""
 
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.remote_services.postgres.tables import listings
 
 
 class HypotheticalListingPrediction(BaseModel):
@@ -29,3 +31,17 @@ class HypotheticalListingPrediction(BaseModel):
 class HypotheticalListingComparison(HypotheticalListingPrediction):
     """Class representing a hypothetical listing for comparison purposes."""
     top_n: int = Field(10, ge=1, description="Number of top similar listings to consider")
+    columns: list[str] | None = Field(
+        None,
+        description="Columns of the listings table to include. None includes all columns",
+    )
+
+    @field_validator("columns")
+    @classmethod
+    def columns_exist(cls, value: list[str] | None) -> list[str] | None:
+        """Ensure all requested columns exist in the listings table."""
+        if value is not None:
+            unknown = [name for name in value if name not in listings.c]
+            if unknown:
+                raise ValueError(f"Unknown listing columns: {', '.join(unknown)}")
+        return value

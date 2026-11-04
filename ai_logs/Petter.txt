@@ -179,3 +179,19 @@ def distance(hypo_listing: dict, listings: pd.DataFrame):
 * Remark that the query should return the top n listings. 
 * Make also sure that if some input argument is set to None, then we don't include that field in the distance calculation.
 * Use the listings table: #sym:listings 
+
+
+#sym:HypotheticalListingPrediction
+#sym:listings
+* Allow the user to choose which columns to include from the listings table.
+* The default value should be None, which means that all columns should be included.
+* Update #sym:build_listing_comparison accordingly by including the columns chosen by the user.
+
+
+Kolumn	Typ	Kommentar
+listing_id	bigint	
+amenity	text	
+
+* Build a new listing in postgres/queries/tables/definitions.py accordingly with the table I provided
+* Build a new router and store an enpoint that allows the user to select amenities on the basis of id. The user should be able to include several ids. 
+* Build a query that supports this functionality  in a new python file named amenities in postgres/queries
