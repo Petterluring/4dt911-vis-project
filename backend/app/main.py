@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.exception_handling import register_exception_handlers
+from app.remote_services.mlflow.config import MlflowConfig
 from app.remote_services.postgres.db_engine_factory import create_async_postgres_engine
 from app.remote_services.postgres.users import Users
 from app.router import (
@@ -19,22 +20,21 @@ from app.router import (
     scatterplots,
 )
 
+from .configs import db_user, mlflow_user, postgres_engine_kwargs
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application resources."""
     engine: AsyncEngine = create_async_postgres_engine(
-        Users.AIRBNB.load_user(),
-        kwargs={
-            "pool_size": 5,
-            "max_overflow": 10,
-            "pool_timeout": 10,
-            "pool_pre_ping": True,
-        },
+        db_user,
+        kwargs=postgres_engine_kwargs,
     )
-
     app.state.db_engine = engine
 
+    MlflowConfig.set_tracking_and_credentials(user=mlflow_user)
+    MlflowConfig.set_certificate() # Use default path
+    MlflowConfig.set_multipart_download(enabled=False)
     try:
         yield
     finally:
