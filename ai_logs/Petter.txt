@@ -195,3 +195,78 @@ amenity	text
 * Build a new listing in postgres/queries/tables/definitions.py accordingly with the table I provided
 * Build a new router and store an enpoint that allows the user to select amenities on the basis of id. The user should be able to include several ids. 
 * Build a query that supports this functionality  in a new python file named amenities in postgres/queries
+
+Build a get endpoint that returns the unique feature values of the 'amenities' column in the table #sym:amenities. Make sure to include a query that fetches these values in queries/amenities.py module. 
+
+def distance(
+    hypo_listing: dict,
+    listings: pd.DataFrame,
+    amenities: pd.DataFrame
+):
+    """Calculate distances between a hypothetical listing and existing listings."""
+    distances = pd.Series(
+        0.0, index=listings.index, dtype=float
+    )
+
+    # Categorical distances
+    for category in CATEGORICAL_COLUMNS:
+        if hypo_listing[category] is None:
+            continue
+
+        distances += (
+            listings[category] != hypo_listing[category]
+        ).astype(float)
+
+    # Calculate IQR scales
+    values = listings[NUMERICAL_COLUMNS].astype(float)
+    numeric_scales = (
+        values.quantile(0.75)
+        - values.quantile(0.25)
+    )
+
+    # Convert hypothetical listing values to floats
+    query_values = (
+        pd.Series(hypo_listing)[NUMERICAL_COLUMNS]
+        .astype(float)
+    )
+
+    # Calculate normalized differences
+    differences = (
+        values - query_values
+    ) / numeric_scales.replace(0, 1.0)
+
+    # Handle missing values
+    differences = differences.abs().clip(upper=3.0).fillna(3.0)
+
+    # Calculate Euclidean distances
+    distances += np.sqrt(
+        differences.pow(2).sum(axis=1)
+    )
+
+    # Calculate Jaccard distances for amenities
+    if hypo_listing.get("amenities") is not None:
+        query_amenities = set(hypo_listing["amenities"])
+
+        listing_amenities = (
+            amenities.groupby("listing_id")["amenity"]
+            .agg(set)
+        )
+
+        for idx, listing_id in listings["id"].items():
+            existing_amenities = listing_amenities.get(listing_id, set())
+
+            intersection = len(query_amenities & existing_amenities)
+            union = len(query_amenities | existing_amenities)
+
+            jaccard_distance = (
+                1 - intersection / union
+                if union > 0 else 0.0
+            )
+
+            distances.loc[idx] += jaccard_distance
+
+    return distances.sort_values()
+
+distance(HYPOTHETICAL_LISTING, listings_df, listing_amenities_df)
+
+Add another private function that builds a query calculating the jaccard similarity between the hypothetical listing amenities in #sym:amenities and against listings in the database. Use the jaccard similarity part in the provided function as a guide for how it can be built. 

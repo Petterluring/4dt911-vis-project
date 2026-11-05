@@ -16,15 +16,17 @@ class HypotheticalListingPrediction(BaseModel):
     bedrooms: int | None = Field(None, ge=0, description="Number of bedrooms in the listing")
     beds: int | None = Field(None, ge=0, description="Number of beds in the listing")
     district: str | None = Field(None, description="District where the listing is located")
+    amenities: list[str] | None = Field(None, description="List of amenities for the listing")
 
     @model_validator(mode="after")
-    def at_least_one_field(self):
+    def at_least_one_field(self) -> "HypotheticalListingPrediction":
         """Ensure at least one field is not None."""
         if all(
             value is None for key, value in self.model_dump().items()
             if key in HypotheticalListingPrediction.__annotations__
             ):
-            raise ValueError("At least one of room_type, accommodates, bedrooms, beds, or district must not be None")
+            raise ValueError("At least one of room_type, accommodates," \
+            " bedrooms, beds, district, or amenities must not be None")
         return self
 
 
