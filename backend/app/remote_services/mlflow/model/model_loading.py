@@ -57,6 +57,6 @@ def load_registered_model(
 
     """
     model_uri = build_model_uri(model_name, version=version, alias=alias)
-    logger.info("Loading MLflow model from %s", model_uri)
+    logger.info(f"Loading MLflow model from {model_uri}")
     return load_model(model_uri)
 
