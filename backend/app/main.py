@@ -5,14 +5,16 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from mlflow import MlflowClient
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.exception_handling import register_exception_handlers
 from app.remote_services.mlflow.config import MlflowConfig
+from app.remote_services.mlflow.model.model_registry import ModelRegistry
 from app.remote_services.postgres.db_engine_factory import create_async_postgres_engine
 from app.router import cholorheth_map, health, hello, scatterplots
 
-from .configs import db_user, mlflow_user, postgres_engine_kwargs
+from .configs import db_user, demo_model, mlflow_user, postgres_engine_kwargs
 
 
 @asynccontextmanager
@@ -27,6 +29,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     MlflowConfig.set_tracking_and_credentials(user=mlflow_user)
     MlflowConfig.set_certificate() # Use default path
     MlflowConfig.set_multipart_download(enabled=False)
+    # Created after the global configuration, so it picks up the tracking URI and credentials.
+    app.state.mlflow_client = MlflowClient()
+
+    model_registry = ModelRegistry()
+    model_registry.get(demo_model)
+    app.state.model_registry = model_registry
     try:
         yield
     finally:
