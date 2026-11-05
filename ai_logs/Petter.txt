@@ -125,3 +125,6 @@ Here are some notes.
 * The metrics should be per district, similar to queries such as #sym:build_district_stats .
 * Store the query in scatterplots.py module in queries packet
 * Store endpoint in scatterplots.py in router package
+
+
+I intend to build a function that loads a deployed model from mlflow. The user of the function should be able to load by version, or aliases such as "challenger" or "champion". Can you implement such a function in model_loaders.py? 
