@@ -20,7 +20,7 @@ from sqlalchemy import (
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.remote_services.postgres.tables import amenities, listings
-from app.router.requests.listing_comparison import HypotheticalListingComparison
+from app.router.requests.listing_comparison import HypotheticalListingComparisonRequest
 
 CATEGORICAL_COLUMNS = ("room_type", "district")
 NUMERICAL_COLUMNS = ("accommodates", "bedrooms", "beds")
@@ -147,7 +147,7 @@ def _build_jaccard_similarity(
 
 
 def build_listing_comparison(
-    hypothetical_listing: HypotheticalListingComparison,
+    hypothetical_listing: HypotheticalListingComparisonRequest,
 ) -> Select[Any]:
     """Build a query returning the top ``top_n`` listings by similarity.
 
@@ -249,7 +249,7 @@ def build_listing_comparison(
 
 async def select_similar_listings(
     connection: AsyncConnection,
-    hypothetical_listing: HypotheticalListingComparison,
+    hypothetical_listing: HypotheticalListingComparisonRequest,
 ) -> list[dict[str, Any]]:
     """Fetch the top similar listings, including their similarity scores."""
     result = await connection.execute(
