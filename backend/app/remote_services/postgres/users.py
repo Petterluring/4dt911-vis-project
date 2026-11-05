@@ -18,7 +18,7 @@ class DBUser(BaseModel):
     database: str
 
 
-class Users(Enum):
+class DBUsers(Enum):
     """Enum representing PostgreSQL users with their corresponding YAML configuration files."""
     DEMO = POSTGRE_USERS / "demo_user.yaml"
     AIRBNB = POSTGRE_USERS / "airbnb_user.yaml"

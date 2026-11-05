@@ -270,3 +270,4 @@ def distance(
 distance(HYPOTHETICAL_LISTING, listings_df, listing_amenities_df)
 
 Add another private function that builds a query calculating the jaccard similarity between the hypothetical listing amenities in #sym:amenities and against listings in the database. Use the jaccard similarity part in the provided function as a guide for how it can be built. 
+I intend to build a function that loads a deployed model from mlflow. The user of the function should be able to load by version, or aliases such as "challenger" or "champion". Can you implement such a function in model_loaders.py? 
