@@ -10,8 +10,12 @@ maintainers = [{ name = "Petter Gustafsson", email = "petter.gustafsson1998@gmai
 dependencies = [
     "fastapi>=0.141.0", # Requires Python>=3.10. Includes: Pydantic and Starlette.
     "uvicorn[standard]>=0.52.0", # Requires Python>=3.10.
-    "mlflow-skinny>=3.16.0, <4.0.0", # Python>=3.10,
-    
+    "mlflow-skinny==3.16.0", # Python>=3.10,
+    "numpy==2.5.3",
+    "pandas==3.0.6",
+    "psutil==7.2.2",
+    "scikit-learn==1.9.1",
+    "skops==0.15.0",
     "SQLAlchemy[asyncio, postgresql-psycopgbinary]>=2.1.4",
 ]
 
