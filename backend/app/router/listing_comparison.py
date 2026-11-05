@@ -7,14 +7,14 @@ from fastapi import APIRouter
 from app.remote_services.postgres import ConnectionDep
 from app.remote_services.postgres.queries.listing_comparison import select_similar_listings
 
-from .requests.listing_comparison import HypotheticalListingComparison
+from .requests.listing_comparison import HypotheticalListingComparisonRequest
 
 router = APIRouter(prefix="/listing-comparisons", tags=["listing-comparisons"])
 
 
 @router.post("/compare")
 async def compare_listings(
-    request: HypotheticalListingComparison,
+    request: HypotheticalListingComparisonRequest,
     connection: ConnectionDep,
 ) -> list[dict[str, Any]]:
     """Return a comparison of the hypothetical listing with similar listings."""
