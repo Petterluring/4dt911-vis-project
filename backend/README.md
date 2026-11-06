@@ -112,6 +112,15 @@ To verify that the application can successfully connect to the database, execute
 curl http://localhost:8000/health-db
 ```
 
+To verify connectivity and authentication with MLflow, run:
+
+```bash
+curl http://localhost:8000/health-mlflow
+```
+
+The response includes the tracking URI and the number of experiments returned by a search limited to one.
+The count can be zero if there are no experiments.
+
 To explore and interact with the available API endpoints using the Swagger UI, open:
 
 `http://localhost:8000/docs`

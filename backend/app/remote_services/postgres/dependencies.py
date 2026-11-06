@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from app.exceptions import DatabaseUnavailableException
 
-logger = getLogger(__name__)
+logger = getLogger("uvicorn.error")
 
 def get_db_engine(request: Request) -> AsyncEngine:
     """Retrieve the database engine from application state."""

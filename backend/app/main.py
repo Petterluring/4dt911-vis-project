@@ -1,6 +1,7 @@
 """Main entrypoint for the backend FastAPI application."""
 
 from contextlib import asynccontextmanager
+from logging import getLogger
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
@@ -22,8 +23,9 @@ from app.router import (
     scatterplots,
 )
 
-from .configs import db_user, demo_model, mlflow_user, postgres_engine_kwargs
+from .configs import db_user, mlflow_user, postgres_engine_kwargs
 
+logger = getLogger("uvicorn.error")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -41,7 +43,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.mlflow_client = MlflowClient()
 
     model_registry = ModelRegistry()
-    model_registry.get(demo_model)
+    model_registry.load_all()
     app.state.model_registry = model_registry
     try:
         yield

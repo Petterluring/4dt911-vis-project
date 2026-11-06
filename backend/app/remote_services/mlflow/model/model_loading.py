@@ -4,7 +4,7 @@ from logging import getLogger
 
 from mlflow.pyfunc import PyFuncModel, load_model
 
-logger = getLogger(__name__)
+logger = getLogger("uvicorn.error")
 
 
 def build_model_uri(model_name: str, version: int | str | None = None, alias: str | None = None) -> str:

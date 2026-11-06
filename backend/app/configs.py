@@ -11,5 +11,3 @@ postgres_engine_kwargs = {
     "pool_timeout": 10,
     "pool_pre_ping": True,
 }
-
-demo_model = "demo_model"
