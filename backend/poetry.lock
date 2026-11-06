@@ -1521,6 +1521,22 @@ timezone = ["pytz (>=2020.1)"]
 xml = ["lxml (>=5.3.0)"]
 
 [[package]]
+name = "pandas-stubs"
+version = "3.1.0.261029"
+description = "Type annotations for pandas"
+optional = true
+python-versions = ">=3.11"
+groups = ["main"]
+markers = "extra == \"dev\""
+files = [
+    {file = "pandas_stubs-3.1.0.261029-py3-none-any.whl", hash = "sha256:70f631f2d0781c4500b1cd5f84cab7d7279a3d114674d69655536a4a99a3a67f"},
+    {file = "pandas_stubs-3.1.0.261029.tar.gz", hash = "sha256:dcfb5b14d399beae72cce558db6d2a0d89c10301275557f1c00d5393e9cb190e"},
+]
+
+[package.dependencies]
+numpy = ">=1.23.5"
+
+[[package]]
 name = "pathspec"
 version = "1.1.1"
 description = "Utility library for gitignore style pattern matching of file paths."
@@ -2972,9 +2988,9 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 
 [extras]
-dev = ["httpx2", "mypy", "pytest", "ruff", "types-PyYAML"]
+dev = ["httpx2", "mypy", "pandas-stubs", "pytest", "ruff", "types-PyYAML"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14.0,<3.15.0"
-content-hash = "99254b781b16c0b80af930bacc96593cfc5e86f74e581139a69ce841b5e89212"
+content-hash = "e06c0b9d93ebb7105b7389c6d804756fea7a56e82cac755382c7fa8fbddc9a0f"

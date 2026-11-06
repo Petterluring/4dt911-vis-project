@@ -7,7 +7,7 @@ from mlflow.pyfunc import PyFuncModel
 
 from .model_loading import load_registered_model
 
-logger = getLogger(__name__)
+logger = getLogger("uvicorn.error")
 
 DEMO_MODEL_NAME = "demo_model"
 DEFAULT_ALIAS = "champion"
@@ -45,7 +45,9 @@ class ModelRegistry:
         key = (model_name, f"v{version}" if version is not None else f"@{alias}")
         with self._lock:
             if key not in self._models:
+                logger.info(f"Loading model {"".join(key)}...")
                 self._models[key] = load_registered_model(model_name, version=version, alias=alias)
+                logger.info(f"Loaded model {"".join(key)}...")
             return self._models[key]
 
     def reload(self, model_name: str, version: int | str | None = None, alias: str | None = None) -> PyFuncModel:
@@ -53,6 +55,7 @@ class ModelRegistry:
         if version is None and alias is None:
             alias = self._default_alias
         key = (model_name, f"v{version}" if version is not None else f"@{alias}")
+        logger.info(f"Reloading model {"".join(key)}...")
         with self._lock:
             self._models.pop(key, None)
         return self.get(model_name, version=version, alias=alias)

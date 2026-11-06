@@ -10,7 +10,7 @@ from mlflow import set_tracking_uri
 
 from .constants import MLFLOW_CERT_FILE
 
-logger = getLogger(__name__)
+logger = getLogger("uvicorn.error")
 
 
 class MlflowConfig:
@@ -29,18 +29,17 @@ class MlflowConfig:
         """
         environ["MLFLOW_TRACKING_URI"] = user.host
         set_tracking_uri(user.host)
+        logger.info(f"MLflow tracking URI set to {user.host}.")
 
         if user.username is not None and user.password is not None:
             environ["MLFLOW_TRACKING_USERNAME"] = user.username
             environ["MLFLOW_TRACKING_PASSWORD"] = user.password
+            logger.info(f"MLflow tracking credentials set for user {user.username}.")
         else:
             # Avoid stale credentials from a previously configured user.
             environ.pop("MLFLOW_TRACKING_USERNAME", None)
             environ.pop("MLFLOW_TRACKING_PASSWORD", None)
 
-        logger.info(f"MLflow tracking URI set to {user.host}.")
-        if user.username is not None and user.password is not None:
-            logger.info(f"MLflow tracking credentials set for user {user.username}.")
 
     @staticmethod
     def set_certificate(certificate_path: str | Path = MLFLOW_CERT_FILE) -> None:
