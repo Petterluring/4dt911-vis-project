@@ -39,7 +39,7 @@ EXAMPLE_AMENITIES_SET = [
         "Wine glasses",
     ]
 
-class HypotheticalListingRequest(BaseModel):
+class HypotheticalListingPredictionRequest(BaseModel):
     """Class representing a hypothetical listing with optional fields.
 
     At least one field must be provided.
@@ -52,18 +52,18 @@ class HypotheticalListingRequest(BaseModel):
     amenities: list[str] | None = Field(EXAMPLE_AMENITIES_SET, description="List of amenities for the listing")
 
     @model_validator(mode="after")
-    def at_least_one_field(self) -> "HypotheticalListingRequest":
+    def at_least_one_field(self) -> "HypotheticalListingPredictionRequest":
         """Ensure at least one field is not None."""
         if all(
             value is None for key, value in self.model_dump().items()
-            if key in HypotheticalListingRequest.__annotations__
+            if key in HypotheticalListingPredictionRequest.__annotations__
             ):
             raise ValueError("At least one of room_type, accommodates," \
             " bedrooms, beds, district, or amenities must not be None")
         return self
 
 
-class HypotheticalListingComparisonRequest(HypotheticalListingRequest):
+class HypotheticalListingComparisonRequest(HypotheticalListingPredictionRequest):
     """Class representing a hypothetical listing for comparison purposes."""
     top_n: int = Field(10, ge=1, description="Number of top similar listings to consider")
     columns: list[str] | None = Field(

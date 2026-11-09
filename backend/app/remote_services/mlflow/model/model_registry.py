@@ -10,6 +10,7 @@ from .model_loading import load_registered_model
 logger = getLogger("uvicorn.error")
 
 DEMO_MODEL_NAME = "demo_model"
+AIRBNB_PRICE_PRED_MODEL_NAME = "airbnb_price_prediction"
 DEFAULT_ALIAS = "champion"
 
 
@@ -63,8 +64,14 @@ class ModelRegistry:
     def load_all(self) -> None:
         """Load every model attribute, e.g. at startup, so the first request does not pay the load time."""
         _ = self.demo_model
+        _ = self.airbnb_price_prediction
 
     @property
     def demo_model(self) -> PyFuncModel:
         """The demo model, loaded with the registry's default alias."""
         return self.get(DEMO_MODEL_NAME)
+
+    @property
+    def airbnb_price_prediction(self) -> PyFuncModel:
+        """The Airbnb price prediction model, loaded with the registry's default alias."""
+        return self.get(AIRBNB_PRICE_PRED_MODEL_NAME)
