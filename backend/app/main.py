@@ -13,7 +13,6 @@ from app.exception_handling import register_exception_handlers
 from app.remote_services.mlflow.config import MlflowConfig
 from app.remote_services.mlflow.model.model_registry import ModelRegistry
 from app.remote_services.postgres.db_engine_factory import create_async_postgres_engine
-from app.remote_services.postgres.users import Users
 from app.router import (
     amenities,
     cholorheth_map,
