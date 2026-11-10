@@ -253,7 +253,7 @@ test('large listing rankings render a bounded window and retain all records in l
   const listings = Array.from({ length: 4806 }, (_, index) => ({ id: String(index + 1), name: `Listing ${index + 1}`, price: index, number_of_reviews: 0 }));
   const html = renderToStaticMarkup(createElement(ListingRanking, {
     resource: { status: 'success', data: listings }, listings, allListings: listings,
-    filters: { minPrice: '', maxPrice: '', bedrooms: '', guests: '', roomType: '' }, roomTypes: [], onFilters() {}, selectedListingId: '2', onSelect() {},
+    selectedListingId: '2', onSelect() {},
   }));
   assert.match(html, /aria-rowcount="4807"/);
   assert.match(html, /aria-selected="true"/);
@@ -272,14 +272,17 @@ test('listing focus centres the point in the clear map area without zooming out 
   }
   assert.equal(map.focusedListingTransform(listing, 1440, 550, 2 ** 17).k, 2 ** 17);
 });
-test('dashboard always includes ranking and both scatterplots without a top banner or close button', async () => {
+test('dashboard starts in map view with shared filters and both scatterplots', async () => {
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const { default: Explorer } = await server.ssrLoadModule('/src/pages/Explorer.tsx');
   const html = renderToStaticMarkup(createElement(Explorer));
-  assert.match(html, /Listing ranking/);
+  assert.match(html, /aria-pressed="true">Map/);
+  assert.match(html, /aria-pressed="false">Listings/);
+  assert.match(html, /Listing filters/);
+  assert.doesNotMatch(html, /id="ranking-title"/);
   assert.match(html, /id="district-comparison"/);
-  assert.doesNotMatch(html, /explorer-header|Compare districts|Close district comparison/);
+  assert.doesNotMatch(html, /Compare districts|Close district comparison/);
 });
 
 test('listing filters combine inclusive bounds, preserve zero and exclude unknown values only for active fields', async () => {

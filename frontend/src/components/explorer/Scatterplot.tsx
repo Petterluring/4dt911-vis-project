@@ -26,7 +26,7 @@ export default function Scatterplot({ id, title, subtitle, points, xLabel, yLabe
   const [size, setSize] = useState({ width: 480, height: 164 });
   useEffect(() => {
     if (!container.current) return;
-    const observer = new ResizeObserver(([entry]) => setSize({ width: Math.max(240, entry.contentRect.width), height: Math.max(124, entry.contentRect.height) }));
+    const observer = new ResizeObserver(([entry]) => setSize({ width: Math.max(240, entry.contentRect.width), height: Math.max(112, entry.contentRect.height) }));
     observer.observe(container.current);
     return () => observer.disconnect();
   }, []);

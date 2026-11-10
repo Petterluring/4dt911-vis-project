@@ -13,10 +13,7 @@ export const districtPath = geoPath(geoTransform({ point(longitude, latitude) {
   const [x, y] = project(longitude, latitude); this.stream.point(x, y);
 } }));
 export function mapViewport(width: number, height: number) {
-  // Reserve the ranking panel, which ends at the right edge of the legend.
-  const left = width >= 1100 ? 596 : 24;
-  const right = width >= 1100 ? 352 : 24;
-  const top = 128, bottom = 40;
+  const left = 24, right = 24, top = 24, bottom = 28;
   return { left, top, width: Math.max(120, width - left - right), height: Math.max(120, height - top - bottom) };
 }
 export function fittedTransform(geometry: DistrictGeometry, width: number, height: number): ZoomTransform {

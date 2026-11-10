@@ -63,7 +63,8 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   useEffect(() => {
     if (!container.current) return;
     const observer = new ResizeObserver(([entry]) => {
-      setSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+      const { width, height } = entry.contentRect;
+      if (width > 0 && height > 0) setSize(previous => previous.width === width && previous.height === height ? previous : { width, height });
     });
     observer.observe(container.current);
     return () => observer.disconnect();
@@ -168,6 +169,29 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
     window.addEventListener('keydown', escape);
     return () => window.removeEventListener('keydown', escape);
   }, [drawingEnabled]);
+  const navigation = <div className="map-navigation panel" aria-label="Map navigation">
+      <div className="map-navigation__zoom">
+        <button type="button" onClick={() => changeZoom(2)} aria-label="Zoom in">+</button>
+        <button type="button" onClick={() => changeZoom(.5)} aria-label="Zoom out">−</button>
+      </div>
+      <button className="recenter-button" type="button" onClick={resetView} title="Fit all Stockholm districts" aria-label="Recenter map">Recenter</button>
+      {onSelectGroup && showListings && <div className="map-selection-tools" role="group" aria-label="Listing selection tools">
+        {(['rectangle', 'lasso'] as const).map(tool => <button key={tool} type="button"
+          aria-pressed={drawingEnabled && selectionTool === tool}
+          title={tool === 'rectangle' ? 'Draw a rectangle' : 'Draw a freehand lasso'}
+          onClick={() => {
+            cancelDrawing();
+            if (selectionTool !== tool) { onHover(null); setSelectionTool(tool); }
+          }}>
+          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+            {tool === 'rectangle' ? <rect x="3" y="4" width="14" height="12" rx="1" strokeDasharray="3 2" />
+              : <><path d="M6 13C1 12 2 5 8 4c5-2 10 1 10 5s-5 6-10 5" /><path d="M8 14c-1-3-5-2-4 1s6 0 5 3" /></>}
+          </svg>
+          {tool === 'rectangle' ? 'Rectangle' : 'Lasso'}
+        </button>)}
+      </div>}
+      {drawingEnabled ? <p className="map-navigation__hint" role="status">{selectionTool === 'lasso' ? 'Draw around listings.' : 'Drag a box.'} Hold Shift to add.</p> : showListings && <p className="map-navigation__hint" role="status">{listingsSelectable ? 'Click a listing to explore' : 'Zoom in to select listings'}</p>}
+    </div>;
   return <div className="district-map" ref={container}>
     <svg ref={svg} width={size.width} height={size.height} aria-label={districtsVisible ? 'Interactive Stockholm district map' : 'Interactive Stockholm listing map'} focusable="false"
       onDragStart={event => event.preventDefault()} onClickCapture={handleClick}
@@ -242,29 +266,7 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       </svg>}
       {box && <div className="map-selection-box" style={selectionBounds(box.start, box.end)} />}
     </div>}
-    <div className="map-navigation panel" aria-label="Map navigation">
-      <div className="map-navigation__zoom">
-        <button type="button" onClick={() => changeZoom(2)} aria-label="Zoom in">+</button>
-        <button type="button" onClick={() => changeZoom(.5)} aria-label="Zoom out">−</button>
-      </div>
-      <button className="recenter-button" type="button" onClick={resetView} title="Fit all Stockholm districts" aria-label="Recenter map">Recenter</button>
-      {onSelectGroup && showListings && <div className="map-selection-tools" role="group" aria-label="Listing selection tools">
-        {(['rectangle', 'lasso'] as const).map(tool => <button key={tool} type="button"
-          aria-pressed={drawingEnabled && selectionTool === tool}
-          title={tool === 'rectangle' ? 'Draw a rectangle' : 'Draw a freehand lasso'}
-          onClick={() => {
-            cancelDrawing();
-            if (selectionTool !== tool) { onHover(null); setSelectionTool(tool); }
-          }}>
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-            {tool === 'rectangle' ? <rect x="3" y="4" width="14" height="12" rx="1" strokeDasharray="3 2" />
-              : <><path d="M6 13C1 12 2 5 8 4c5-2 10 1 10 5s-5 6-10 5" /><path d="M8 14c-1-3-5-2-4 1s6 0 5 3" /></>}
-          </svg>
-          {tool === 'rectangle' ? 'Rectangle' : 'Lasso'}
-        </button>)}
-      </div>}
-      {drawingEnabled ? <p className="map-navigation__hint" role="status">{selectionTool === 'lasso' ? 'Draw around listings.' : 'Drag a box.'} Hold Shift to add.</p> : showListings && <p className="map-navigation__hint" role="status">{listingsSelectable ? 'Click a listing to explore' : 'Zoom in to select listings'}</p>}
-    </div>
+    {navigation}
     {showBasemap && tileError && <div className="tile-error panel" role="status">
       Some map tiles are unavailable. District layers remain usable.
       <button className="text-button" onClick={() => { setTileRevision(value => value + 1); setTileError(false); }}>Retry tiles</button>
