@@ -4,16 +4,13 @@ import type { KeyboardEvent } from 'react';
 import type { ListingLocation, Resource } from '../../interfaces/explorer';
 import { formatNumber } from '../../utils/explorer';
 import { safeExternalUrl } from '../../utils/listing';
-import { EMPTY_FILTERS, LISTING_RANGES, listingRangeMaximum, LISTING_ROW_HEIGHT, LISTING_SORTS, listingWindow, rankListings } from '../../utils/ranking';
-import type { ListingFilters, ListingSortKey, SortDirection } from '../../utils/ranking';
+import { LISTING_ROW_HEIGHT, LISTING_SORTS, listingWindow, rankListings } from '../../utils/ranking';
+import type { ListingSortKey, SortDirection } from '../../utils/ranking';
 interface Props {
   resource: Resource<ListingLocation[]>;
   listings: ListingLocation[];
   allListings: ListingLocation[];
   groupActive?: boolean;
-  filters: ListingFilters;
-  roomTypes: string[];
-  onFilters: (filters: ListingFilters) => void;
   selectedListingId: string | null;
   selectionRevision?: number;
   onSelect: (listing: ListingLocation) => void;
@@ -35,7 +32,7 @@ function Preview({ listing, left, top }: { listing: ListingLocation; left: numbe
     </div>
   </aside>, document.body);
 }
-export default function ListingRanking({ resource, listings, allListings, groupActive = false, filters, roomTypes, onFilters, selectedListingId, selectionRevision = 0, onSelect }: Props) {
+export default function ListingRanking({ resource, listings, allListings, groupActive = false, selectedListingId, selectionRevision = 0, onSelect }: Props) {
   const [sortKey, setSortKey] = useState<ListingSortKey>('price');
   const [direction, setDirection] = useState<SortDirection>('asc');
   const [viewport, setViewport] = useState({ scrollTop: 0, height: 240 });
@@ -108,54 +105,10 @@ export default function ListingRanking({ resource, listings, allListings, groupA
     hidePreview();
     setSortKey(key); setDirection(key === sortKey && direction === 'asc' ? 'desc' : 'asc');
   }
-  function update(key: keyof ListingFilters, value: string) { hidePreview(); onFilters({ ...filters, [key]: value }); }
-  const maxima = useMemo(() => LISTING_RANGES.map(range => listingRangeMaximum(allListings, filters, range)), [allListings, filters]);
-  const activeFilters = Object.values(filters).some(Boolean);
   return <section className="listing-ranking panel" aria-labelledby="ranking-title">
-    <header className="ranking-header"><h2 id="ranking-title">{groupActive ? 'Selected listings' : 'Listing ranking'}</h2><span className="ranking-count">{formatNumber(listings.length)} / {formatNumber(allListings.length)}</span>
-      {activeFilters && <button type="button" className="text-button" onClick={() => { hidePreview(); onFilters({ ...EMPTY_FILTERS }); }}>Reset filters</button>}</header>
-    <div className="ranking-filters">
-      {LISTING_RANGES.map((range, index) => {
-        const maximum = maxima[index];
-        const limit = maximum ?? 0;
-        const from = filters[range.from] === '' ? 0 : Number(filters[range.from]);
-        const lower = Math.min(from, limit);
-        const upper = 'to' in range && filters[range.to] !== '' ? Math.min(Number(filters[range.to]), limit) : limit;
-        return <fieldset key={range.field} className="ranking-range">
-          <legend>{range.label}</legend>
-          {'to' in range ? <>
-            <span className="ranking-range-value">{maximum == null ? 'N/A' : formatNumber(lower) + ' to ' + formatNumber(upper)}</span>
-            <div className="ranking-slider ranking-dual-range">
-              <div className="ranking-range-track" aria-hidden="true"><span style={{
-                left: (limit ? lower / limit * 100 : 0) + '%',
-                right: (limit ? (1 - upper / limit) * 100 : 0) + '%',
-              }} /></div>
-              <input className={lower === limit ? 'ranking-thumb-front' : undefined} aria-label="Minimum nightly price" type="range"
-                min={0} max={limit} value={lower} disabled={!limit} onChange={event => {
-                  const value = Math.min(Number(event.target.value), upper);
-                  update(range.from, value === 0 ? '' : String(value));
-                }} />
-              <input aria-label="Maximum nightly price" type="range" min={0} max={limit} value={upper} disabled={!limit}
-                onChange={event => {
-                  const value = Math.max(Number(event.target.value), lower);
-                  update(range.to, value === limit ? '' : String(value));
-                }} />
-            </div>
-          </> : <>
-            <span className="ranking-range-value">{maximum == null ? 'N/A' : from === 0 ? 'Any' : 'At least ' + formatNumber(from)}</span>
-            <div className="ranking-slider">
-              <div className="ranking-range-track" aria-hidden="true"><span style={{
-                left: 0, width: (limit ? lower / limit * 100 : 0) + '%',
-              }} /></div>
-              <input aria-label={'Minimum ' + range.label.toLowerCase()} type="range" min={0} max={limit} value={lower}
-                disabled={!limit} onChange={event => update(range.from, event.target.value === '0' ? '' : event.target.value)} />
-            </div>
-          </>}
-        </fieldset>;
-      })}
-      <label>Room type<select value={filters.roomType} onChange={event => update('roomType', event.target.value)}><option value="">All types</option>{roomTypes.map(type => <option key={type}>{type}</option>)}</select></label>
-    </div>
-    <p className="sr-only" id="ranking-keyboard">Sort using column headers. Focus or hover a row for a preview. Enter selects a listing on the map. Use arrow keys, Home and End to navigate. Missing values sort last.</p>
+    <header className="ranking-header"><h2 id="ranking-title">{groupActive ? 'Selected listings' : 'Listing ranking'}</h2>
+      <span className="ranking-count">{formatNumber(listings.length)} / {formatNumber(allListings.length)}</span></header>
+    <p className="sr-only" id="ranking-keyboard">Sort using column headers. Focus or hover a row for a preview. Enter opens the listing details. Use arrow keys, Home and End to navigate. Missing values sort last.</p>
     <div className="ranking-table" role="grid" aria-label="Airbnb listings" aria-describedby="ranking-keyboard" aria-rowcount={ranked.length + 1} aria-colcount={7} aria-busy={resource.status === 'loading'}>
       <div role="row" aria-rowindex={1} className="ranking-columns">
         <span role="columnheader" aria-label="Rank">#</span><span role="columnheader">Listing</span>

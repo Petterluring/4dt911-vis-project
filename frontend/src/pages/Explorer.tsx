@@ -8,6 +8,7 @@ import DistrictMap from '../components/explorer/DistrictMap';
 import DistrictDetails from '../components/explorer/DistrictDetails';
 import ListingDetails from '../components/explorer/ListingDetails';
 import SelectionSummary from '../components/explorer/SelectionSummary';
+import ListingFiltersPanel from '../components/explorer/ListingFilters';
 import ListingRanking from '../components/explorer/ListingRanking';
 import ComparisonPanel from '../components/explorer/ComparisonPanel';
 import { EMPTY_FILTERS, filterListings } from '../utils/ranking';
@@ -15,6 +16,7 @@ import type { ListingFilters } from '../utils/ranking';
 import './Explorer.css';
 const EMPTY_LISTINGS: ListingLocation[] = [];
 export default function Explorer() {
+  const [view, setView] = useState<'map' | 'listings'>('map');
   const [metric, setMetric] = useState<PriceMetric>('median_airbnb_price');
   const [mode, setMode] = useState<PriceMode>('median');
   const [showListings, setShowListings] = useState(true);
@@ -66,7 +68,7 @@ export default function Explorer() {
   const scale = useMemo(() => metricScale(data.prices.data ?? [], metric), [data.prices.data, metric]);
   const listingScale = useMemo(() => listingMetricScale(allListings, data.prices.data ?? [], metric), [allListings, data.prices.data, metric]);
   const districtLegend = showDistricts && !(showListings && detailZoom);
-  const activeDistrict = showDistricts ? hoveredDistrict ?? selectedDistrict : null;
+  const activeDistrict = showDistricts ? (view === 'map' ? hoveredDistrict : null) ?? selectedDistrict : null;
   const errors = [data.geometry, data.prices, data.tooltips, data.listings, data.scatterplots].some(resource => resource.status === 'error');
   function toggleDistricts(visible: boolean) {
     setShowDistricts(visible); setHoveredDistrict(null);
@@ -76,71 +78,86 @@ export default function Explorer() {
     setSelectedDistrict(null); setHoveredDistrict(null); clearGroup();
   }
   return <main className="explorer" aria-label="SABA - Stockholm Airbnb Analytics">
-    <div className="explorer__map">
-      {data.geometry.status === 'success' ? <DistrictMap geometry={data.geometry.data} prices={data.prices.data ?? []}
-        listings={listings} listingScale={listingScale} onDetailZoom={setDetailZoom} groupIds={groupIds} onSelectGroup={data.listings.status === 'success' ? selectGroup : undefined} metric={metric} selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict}
-        showListings={showListings} showBasemap={showBasemap} showDistricts={showDistricts} focusRequest={focusRequest}
-        onHover={setHoveredDistrict} onSelect={selectDistrict} selectedListingId={selectedListingId} onSelectListing={selectListing} />
-        : <div className="map-message" role={data.geometry.status === 'error' ? 'alert' : 'status'}>
-          {data.geometry.status === 'error' ? data.geometry.error : 'Loading Stockholm district boundaries…'}
-        </div>}
-    </div>
-    <aside className="explorer-sidebar" aria-label="Explore and rank listings">
-      <section className="map-controls panel" aria-label="Map settings">
-        <p className="eyebrow">SABA · Explore the city</p><h1>Explore Stockholm</h1>
-        <label className="control-label" htmlFor="map-metric">Colour map by</label>
-        <select id="map-metric" disabled={!showDistricts && !showListings} value={metric} onChange={event => setMetric(event.target.value as PriceMetric)}>
-          {Object.entries(METRICS).map(([value, definition]) => <option key={value} value={value}>{definition.label}</option>)}
-        </select>
-        <p className="metric-unit">{METRICS[metric].unit} · Linear colour scale</p>
-        <label className="control-label" htmlFor="district-selection">Selected district</label>
-        <select id="district-selection" disabled={!showDistricts} value={selectedDistrict ?? ''} onChange={event => {
-          setSelectedDistrict(event.target.value ? event.target.value as District : null);
-          setHoveredDistrict(null); setSelectedListingId(null); setFocusRequest(null);
-        }}><option value="">All districts</option>{DISTRICTS.map(district => <option key={district} value={district}>{district}</option>)}</select>
-        <div className="layer-controls">
-          <label><input type="checkbox" checked={showListings} onChange={event => {
-            setShowListings(event.target.checked);
-            if (!event.target.checked) { setSelectedListingId(null); setFocusRequest(null); }
-          }} /><span>Airbnb locations</span><span className="listing-key" /></label>
-          <label><input type="checkbox" checked={showBasemap} onChange={event => setShowBasemap(event.target.checked)} /><span>Street map</span></label>
-          <label><input type="checkbox" checked={showDistricts} onChange={event => toggleDistricts(event.target.checked)} /><span>Districts</span></label>
+    <header className="explorer-header">
+      <div><p className="eyebrow">SABA · Explore the city</p><h1>Explore Stockholm</h1></div>
+      <div className="segmented explorer-view-switch" role="group" aria-label="Explorer view">
+        <button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}>Map</button>
+        <button type="button" aria-pressed={view === 'listings'} onClick={() => { setHoveredDistrict(null); setView('listings'); }}>Listings</button>
+      </div>
+    </header>
+    <div className="explorer-content">
+      <section className="explorer-map-view" hidden={view !== 'map'} aria-label="Map view">
+        <div className="explorer__map panel">
+          {data.geometry.status === 'success' ? <DistrictMap geometry={data.geometry.data} prices={data.prices.data ?? []}
+            listings={listings} listingScale={listingScale} onDetailZoom={setDetailZoom} groupIds={groupIds} onSelectGroup={data.listings.status === 'success' ? selectGroup : undefined} metric={metric} selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict}
+            showListings={showListings} showBasemap={showBasemap} showDistricts={showDistricts} focusRequest={focusRequest}
+            onHover={setHoveredDistrict} onSelect={selectDistrict} selectedListingId={selectedListingId} onSelectListing={selectListing} />
+            : <div className="map-message" role={data.geometry.status === 'error' ? 'alert' : 'status'}>
+              {data.geometry.status === 'error' ? data.geometry.error : 'Loading Stockholm district boundaries…'}
+            </div>}
+          <details className="map-controls panel">
+            <summary>Map settings</summary>
+            <div className="map-controls__body">
+              <label className="control-label" htmlFor="map-metric">Colour map by</label>
+              <select id="map-metric" disabled={!showDistricts && !showListings} value={metric} onChange={event => setMetric(event.target.value as PriceMetric)}>
+                {Object.entries(METRICS).map(([value, definition]) => <option key={value} value={value}>{definition.label}</option>)}
+              </select>
+              <p className="metric-unit">{METRICS[metric].unit} · Linear colour scale</p>
+              <label className="control-label" htmlFor="district-selection">Selected district</label>
+              <select id="district-selection" disabled={!showDistricts} value={selectedDistrict ?? ''} onChange={event => {
+                setSelectedDistrict(event.target.value ? event.target.value as District : null);
+                setHoveredDistrict(null); setSelectedListingId(null); setFocusRequest(null);
+              }}><option value="">All districts</option>{DISTRICTS.map(district => <option key={district} value={district}>{district}</option>)}</select>
+              <div className="layer-controls">
+                <label><input type="checkbox" checked={showListings} onChange={event => {
+                  setShowListings(event.target.checked);
+                  if (!event.target.checked) { setSelectedListingId(null); setFocusRequest(null); }
+                }} /><span>Airbnb locations</span><span className="listing-key" /></label>
+                <label><input type="checkbox" checked={showBasemap} onChange={event => setShowBasemap(event.target.checked)} /><span>Street map</span></label>
+                <label><input type="checkbox" checked={showDistricts} onChange={event => toggleDistricts(event.target.checked)} /><span>Districts</span></label>
+              </div>
+              <div className="map-controls__footer"><span>{data.listings.status === 'success' ? `${formatNumber(listings.length)} mapped listings` : data.listings.status === 'loading' ? 'Loading listings…' : 'Listing locations unavailable'}</span>
+                <button type="button" className="text-button" disabled={!selectedDistrict && !selectedListingId && !groupIds} onClick={clearSelection}>Clear selection</button>
+              </div>
+            </div>
+          </details>
+          {(districtLegend || showListings) && <div className="map-legend panel" aria-label="Map colour legend">
+            {districtLegend && <>
+            <div><strong>{METRICS[metric].label}</strong><span>{METRICS[metric].unit}</span></div>
+            {data.prices.status === 'loading' ? <p role="status">Loading price statistics…</p>
+              : scale.min == null ? <p>No price data available.</p> : <><div className="legend-gradient" /><div className="legend-labels"><span>{formatNumber(scale.min)}</span><span>{formatNumber(scale.max)}</span></div></>}
+            <p><span className="missing-key" /> No data <span className="selected-key" /> Selected district</p></>}
+            {showListings && <section className={districtLegend ? 'listing-legend listing-legend--separated' : 'listing-legend'} aria-label="Listing colours">
+              <div><strong>{listingScale.housing ? 'Listings: ' + METRICS[metric].label.toLowerCase() + ' by district' : 'Listing nightly price'}</strong>
+                <span>{METRICS[metric].unit}</span></div>
+              {listingScale.min == null ? <p>No listing price data available.</p> : <>
+                <div className="legend-gradient listing-legend-gradient" />
+                <div className="legend-labels"><span>{formatNumber(listingScale.min)}</span><span>{formatNumber(listingScale.max)}</span></div>
+              </>}
+              <p>Logarithmic colour scale</p>
+              <p><span className="missing-key listing-missing-key" /> No data <span className="selected-key listing-selected-key" /> Selected listing</p>
+            </section>}
+          </div>}
         </div>
-        <div className="map-controls__footer"><span>{data.listings.status === 'success' ? `${formatNumber(listings.length)} mapped listings` : data.listings.status === 'loading' ? 'Loading listings…' : 'Listing locations unavailable'}</span>
-          <button type="button" className="text-button" disabled={!selectedDistrict && !selectedListingId && !groupIds} onClick={clearSelection}>Clear selection</button>
-        </div>
+        {view === 'map' && <ComparisonPanel resource={data.scatterplots} mode={mode} onMode={setMode}
+          selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict} onHover={setHoveredDistrict} onSelect={selectDistrict} />}
       </section>
-      <ListingRanking resource={data.listings} listings={rankedListings} allListings={groupSource} groupActive={groupIds !== null} filters={filters} roomTypes={roomTypes} onFilters={changeFilters} selectedListingId={selectedListingId} selectionRevision={selectionRevision} onSelect={selectRankedListing} />
-    </aside>
-    <div className="map-information" aria-label="Selection details">
-      {groupIds && <SelectionSummary listings={rankedListings} onClear={clearGroup} />}
-      {selectedListing ? <div className="listing-card panel"><ListingDetails key={selectedListing.id} listing={selectedListing} onClose={() => { setSelectedListingId(null); setFocusRequest(null); }} /></div>
-        : groupIds ? null : activeDistrict ? <div className="district-card panel"><DistrictDetails district={activeDistrict} tooltips={data.tooltips} /></div>
-          : <div className="map-hint panel"><p className="eyebrow">Discover Stockholm</p><h2>Find your perspective</h2><p>{showDistricts ? 'Hover a district for an overview. Select a listing on the map or in the ranking to see its details.' : 'Select a listing in the ranking, or zoom in and click a map marker.'}</p></div>}
-      {errors && <div className="data-notice panel" role="status"><strong>Some data could not be loaded.</strong>
-        <span>{[data.prices, data.tooltips, data.listings, data.scatterplots].find(resource => resource.status === 'error')?.error ?? data.geometry.error}</span>
-        <button type="button" className="text-button" onClick={() => setRevision(value => value + 1)}>Retry data</button>
-      </div>}
+      {view === 'listings' && <ListingRanking resource={data.listings} listings={rankedListings} allListings={groupSource}
+        groupActive={groupIds !== null} selectedListingId={selectedListingId} selectionRevision={selectionRevision} onSelect={selectRankedListing} />}
     </div>
-    {(districtLegend || showListings) && <div className="map-legend panel" aria-label="Map colour legend">
-      {districtLegend && <>
-      <div><strong>{METRICS[metric].label}</strong><span>{METRICS[metric].unit}</span></div>
-      {data.prices.status === 'loading' ? <p role="status">Loading price statistics…</p>
-        : scale.min == null ? <p>No price data available.</p> : <><div className="legend-gradient" /><div className="legend-labels"><span>{formatNumber(scale.min)}</span><span>{formatNumber(scale.max)}</span></div></>}
-      <p><span className="missing-key" /> No data <span className="selected-key" /> Selected district</p></>}
-      {showListings && <section className={districtLegend ? 'listing-legend listing-legend--separated' : 'listing-legend'} aria-label="Listing colours">
-        <div><strong>{listingScale.housing ? 'Listings: ' + METRICS[metric].label.toLowerCase() + ' by district' : 'Listing nightly price'}</strong>
-          <span>{METRICS[metric].unit}</span></div>
-        {listingScale.min == null ? <p>No listing price data available.</p> : <>
-          <div className="legend-gradient listing-legend-gradient" />
-          <div className="legend-labels"><span>{formatNumber(listingScale.min)}</span><span>{formatNumber(listingScale.max)}</span></div>
-        </>}
-        <p>Logarithmic colour scale</p>
-        <p><span className="missing-key listing-missing-key" /> No data <span className="selected-key listing-selected-key" /> Selected listing</p>
-      </section>}
-    </div>}
-    <ComparisonPanel resource={data.scatterplots} mode={mode} onMode={setMode}
-      selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict} onHover={setHoveredDistrict} onSelect={selectDistrict} />
+    <aside className="explorer-sidebar" aria-label="Controls and information">
+      <ListingFiltersPanel listings={groupSource} filters={filters} roomTypes={roomTypes} onFilters={changeFilters} />
+      <div className="map-information" aria-label="Selection details">
+        {groupIds && <SelectionSummary listings={rankedListings} onClear={clearGroup} />}
+        {selectedListing ? <div className="listing-card panel"><ListingDetails key={selectedListing.id} listing={selectedListing} onClose={() => { setSelectedListingId(null); setFocusRequest(null); }} /></div>
+          : groupIds ? null : activeDistrict ? <div className="district-card panel"><DistrictDetails district={activeDistrict} tooltips={data.tooltips} /></div>
+            : <div className="map-hint panel"><p className="eyebrow">Discover Stockholm</p><h2>Find your perspective</h2><p>{view === 'map' ? 'Hover a district or select a map marker to see its details.' : 'Select a row to see the listing details.'}</p></div>}
+        {errors && <div className="data-notice panel" role="status"><strong>Some data could not be loaded.</strong>
+          <span>{[data.prices, data.tooltips, data.listings, data.scatterplots].find(resource => resource.status === 'error')?.error ?? data.geometry.error}</span>
+          <button type="button" className="text-button" onClick={() => setRevision(value => value + 1)}>Retry data</button>
+        </div>}
+      </div>
+    </aside>
     <div className="sr-only" aria-live="polite">{selectedListing ? `Selected listing: ${selectedListing.name ?? selectedListing.id}` : selectedDistrict ? `Selected district: ${selectedDistrict}` : 'No selection'}</div>
   </main>;
 }

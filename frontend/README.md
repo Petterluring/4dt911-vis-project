@@ -60,19 +60,13 @@ When developing the frontend, follow these guidelines:
 
 ## SABA - Stockholm Airbnb Analytics (SD1 and SD2)
 
-The desktop dashboard keeps the map, left-side controls and listing ranking,
-right-side selection details, and both bottom scatterplots visible together.
-The colour legend sits beside the map controls. The ranking extends beneath both
-controls and legend, ending at the legend's right edge, as a compact sortable table. On desktop the two scatterplots together occupy two thirds of
-the available page width in a compact 220 to 260 px bottom dock. The average/median
-switch sits beside the price plot title. Point values appear in temporary hover
-or keyboard-focus tooltips; permanent readout rows, repeated axis/count notes and
-the bottom selection legend have been removed. Missing-data counts are summarized
-in the plot header and accessible description instead. The previous top banner and
-comparison toggle have been removed. The bottom-right area remains available
-for a later ML price prediction view; that feature is not implemented here.
-Lists and long detail cards scroll within their own panels. On smaller screens,
-sections stack to preserve readable maps, charts and controls.
+Use the **Map / Listings** switch at the top to choose the main view. On desktop,
+the left side occupies about 75% of the workspace and shows either the map and
+its two scatterplots or the sortable listing table. The right sidebar keeps
+listing filters and selection details in both views. Compact map settings and
+colour legends sit on the map. The desktop workspace fits the viewport; the
+listing table and sidebar can scroll independently. Filters, selections, and the map viewport
+are retained when switching views. On smaller screens the panels stack.
 The existing demo pages remain at `/demos/hello-fast-api` and `/demos/hello-world`.
 
 ### Map layers and interactions
