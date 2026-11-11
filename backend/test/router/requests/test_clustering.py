@@ -144,3 +144,40 @@ def test_feature_order_preserved_after_deduplication():
     )
     assert len(request.features) == 3
     assert set(request.features) == {"accommodates", "room_type", "bedrooms"}
+
+
+@pytest.mark.parametrize(
+    ("features", "n_clusters", "expected"),
+    [
+        (["room_type"], 2, "room_type|2"),
+        (["room_type", "accommodates", "bedrooms"], 12, "accommodates,bedrooms,room_type|12"),
+        (["accommodates", "room_type", "bedrooms"], 12, "accommodates,bedrooms,room_type|12"),
+    ],
+)
+def test_hash_format(features, n_clusters, expected):
+    """Test that hashes contain sorted features and the cluster count."""
+    request = ClusteringRequest(features=features, n_clusters=n_clusters)
+
+    assert request.hash() == expected
+
+
+def test_hash_normalizes_feature_order_duplicates_and_whitespace():
+    """Test that equivalent normalized feature sets produce the same hash."""
+    first = ClusteringRequest(features=["room_type", "accommodates"], n_clusters=3)
+    second = ClusteringRequest(
+        features=[" accommodates ", "room_type", "room_type"], n_clusters=3
+    )
+
+    assert first.hash() == second.hash() == "accommodates,room_type|3"
+    assert first.features == ["room_type", "accommodates"]
+    assert second.features == ["accommodates", "room_type"]
+
+
+def test_hash_distinguishes_features_and_cluster_counts():
+    """Test that changing features or the cluster count changes the hash."""
+    baseline = ClusteringRequest(features=["room_type"], n_clusters=3)
+    different_features = ClusteringRequest(features=["bedrooms"], n_clusters=3)
+    different_count = ClusteringRequest(features=["room_type"], n_clusters=4)
+
+    assert baseline.hash() != different_features.hash()
+    assert baseline.hash() != different_count.hash()

@@ -271,3 +271,43 @@ distance(HYPOTHETICAL_LISTING, listings_df, listing_amenities_df)
 
 Add another private function that builds a query calculating the jaccard similarity between the hypothetical listing amenities in #sym:amenities and against listings in the database. Use the jaccard similarity part in the provided function as a guide for how it can be built. 
 I intend to build a function that loads a deployed model from mlflow. The user of the function should be able to load by version, or aliases such as "challenger" or "champion". Can you implement such a function in model_loaders.py? 
+
+Implement a Python class for caching clustering input data and clustering results in clustering.py.
+
+### Class attributes
+
+The class should contain the following attributes:
+
+- **`input_data: pd.DataFrame | None`**: Stores a cached DataFrame that can be reused as input for clustering algorithms.
+- **`clustering_results: dict[str, pd.Series]`**: Stores clustering results, where each key is a unique identifier for a clustering configuration and each value contains the corresponding cluster labels.
+- **`max_cache_size: int`**: Defines the maximum number of clustering results that can be stored simultaneously.
+
+### Initialization
+
+- The constructor should accept `max_cache_size` as an argument.
+- Validate that `max_cache_size` is a positive integer.
+- Initialize the clustering results dictionary as empty and the input data cache as `None`.
+
+### Required methods
+
+1. **Set input data:** Store or replace the cached input DataFrame.
+2. **Add clustering result:** Add a clustering result to the cache using its unique configuration identifier.
+3. **Get clustering result:** Retrieve a cached clustering result by its identifier, returning `None` if it does not exist.
+4. **Remove clustering result:** Remove a specific clustering result from the cache.
+5. **Clear clustering results:** Remove all cached clustering results.
+
+### Cache eviction policy
+
+Implement a **Least Recently Used (LRU)** eviction policy:
+
+- The cache must never exceed `max_cache_size`.
+- Whenever a cached clustering result is retrieved or updated, mark it as the most recently used.
+- When adding a new result to a full cache, automatically remove the least recently used result before inserting the new one.
+- Updating an existing cache entry should not trigger eviction of another entry.
+
+### Additional requirements
+
+- Use Python type annotations for all attributes and methods.
+- Prefer built-in Python functionality, such as `collections.OrderedDict`, rather than external caching libraries.
+- Include docstrings explaining the class and its methods.
+- Keep the implementation simple, readable, and maintainable.
