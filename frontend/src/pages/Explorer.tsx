@@ -12,15 +12,17 @@ import SelectionSummary from '../components/explorer/SelectionSummary';
 import ListingFiltersPanel from '../components/explorer/ListingFilters';
 import ListingRanking from '../components/explorer/ListingRanking';
 import ComparisonPanel from '../components/explorer/ComparisonPanel';
+import './Explorer.css';
+import ListingClusters from '../components/clustering/ListingClusters';
 import { EMPTY_FILTERS, filterListings } from '../utils/ranking';
 import type { ListingFilters } from '../utils/ranking';
-import './Explorer.css';
 const EMPTY_LISTINGS: ListingLocation[] = [];
 export default function Explorer() {
   const [view, setView] = useState<'map' | 'listings'>('map');
   const [sidebar, setSidebar] = useState<'listings' | 'positioning' | 'clustering'>('listings');
   const [positioningOpened, setPositioningOpened] = useState(false);
   const [comparable, setComparable] = useState<ListingLocation | null>(null);
+  const [view, setView] = useState<'map' | 'listings' | 'clusters'>('map');
   const [metric, setMetric] = useState<PriceMetric>('median_airbnb_price');
   const [mode, setMode] = useState<PriceMode>('median');
   const [showListings, setShowListings] = useState(true);
@@ -91,15 +93,16 @@ export default function Explorer() {
   function clearSelection() {
     setSelectedDistrict(null); setHoveredDistrict(null); clearGroup();
   }
-  return <main className="explorer" aria-label="SABA - Stockholm Airbnb Analytics">
+  return <main className={`explorer${view === 'clusters' ? ' explorer--clusters' : ''}`} aria-label="SABA - Stockholm Airbnb Analytics">
     <header className="explorer-header">
       <div><p className="eyebrow">SABA · Explore the city</p><h1>Explore Stockholm</h1></div>
       <div className="segmented explorer-view-switch" role="group" aria-label="Explorer view">
         <button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}>Map</button>
         <button type="button" aria-pressed={view === 'listings'} onClick={() => { setHoveredDistrict(null); setView('listings'); }}>Listings</button>
+        <button type="button" aria-pressed={view === 'clusters'} onClick={() => { setHoveredDistrict(null); setView('clusters'); }}>Listing Clusters</button>
       </div>
     </header>
-    <div className="explorer-content">
+    <div className="explorer-content" hidden={view === 'clusters'}>
       <section className="explorer-map-view" hidden={view !== 'map'} aria-label="Map view">
         <div className="explorer__map panel">
           {data.geometry.status === 'success' ? <DistrictMap geometry={data.geometry.data} prices={data.prices.data ?? []}
@@ -171,6 +174,10 @@ export default function Explorer() {
       </div>}
       <div className="map-information" aria-label="Filters and selection details" hidden={sidebar !== 'listings'}>
         <ListingFiltersPanel listings={groupSource} filters={filters} roomTypes={roomTypes} onFilters={changeFilters} />
+    {view === 'clusters' && <ListingClusters listings={data.listings} geometry={data.geometry} onRetry={() => setRevision(value => value + 1)} />}
+    <aside className="explorer-sidebar" hidden={view === 'clusters'} aria-label="Controls and information">
+      <ListingFiltersPanel listings={groupSource} filters={filters} roomTypes={roomTypes} onFilters={changeFilters} />
+      <div className="map-information" aria-label="Selection details">
         {groupIds && <SelectionSummary listings={rankedListings} onClear={clearGroup} />}
         {selectedListing ? <div className="listing-card panel"><ListingDetails key={selectedListing.id} listing={selectedListing} onClose={() => { setSelectedListingId(null); setFocusRequest(null); }} /></div>
           : groupIds ? null : activeDistrict ? <div className="district-card panel"><DistrictDetails district={activeDistrict} tooltips={data.tooltips} /></div>
