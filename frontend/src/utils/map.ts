@@ -1,6 +1,8 @@
 import { geoPath, geoTransform, zoomIdentity } from 'd3';
 import type { ZoomTransform } from 'd3';
 import type { DistrictGeometry, ListingLocation } from '../interfaces/explorer';
+import type { LocationSearchArea } from '../interfaces/location';
+import { radiusGeometry } from './location';
 export interface ListingFocusRequest { listing: ListingLocation; sequence: number }
 // Web Mercator in a 256 px world aligns the vector overlays with OSM raster tiles.
 export function project(longitude: number, latitude: number): [number, number] {
@@ -27,6 +29,14 @@ export function focusedListingTransform(listing: Pick<ListingLocation, 'latitude
   const viewport = mapViewport(width, height);
   const scale = Math.max(2 ** 15, Math.min(2 ** 19, currentScale));
   const [x, y] = project(listing.longitude, listing.latitude);
+  return zoomIdentity.translate(viewport.left + viewport.width / 2, viewport.top + viewport.height / 2)
+    .scale(scale).translate(-x, -y);
+}
+export function focusedAreaTransform(area: LocationSearchArea, width: number, height: number): ZoomTransform {
+  const [[x0, y0], [x1, y1]] = districtPath.bounds(radiusGeometry(area));
+  const viewport = mapViewport(width, height);
+  const scale = Math.max(128, Math.min(2 ** 19, Math.min(viewport.width / (x1 - x0), viewport.height / (y1 - y0)) * .85));
+  const [x, y] = project(area.location.longitude, area.location.latitude);
   return zoomIdentity.translate(viewport.left + viewport.width / 2, viewport.top + viewport.height / 2)
     .scale(scale).translate(-x, -y);
 }

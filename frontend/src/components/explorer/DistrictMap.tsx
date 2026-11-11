@@ -4,13 +4,18 @@ import { select, zoom, zoomIdentity, zoomTransform } from 'd3';
 import type { ZoomBehavior } from 'd3';
 import type { ListingFocusRequest } from '../../utils/map';
 import type { District, DistrictGeometry, DistrictPrices, ListingLocation, PriceMetric } from '../../interfaces/explorer';
+import type { LocationSearchArea } from '../../interfaces/location';
+import { formatDistance, radiusGeometry } from '../../utils/location';
 import { CHART_COLORS, listingMetricScale, metricScale } from '../../utils/explorer';
-import { districtPath, fittedTransform, focusedListingTransform, project, screenDistrictPath, visibleTiles } from '../../utils/map';
+import { districtPath, fittedTransform, focusedAreaTransform, focusedListingTransform, project, screenDistrictPath, visibleTiles } from '../../utils/map';
 import { MAP_CLICK_DISTANCE, markerRadii, canSelectListings, movedBeyondClick, nearestListing } from '../../utils/listing';
 import { listingsInLasso, listingsInRectangle, selectionBounds } from '../../utils/selection';
 import type { Point } from '../../utils/selection';
 type SelectionTool = 'rectangle' | 'lasso';
 interface Props {
+  searchArea?: LocationSearchArea | null;
+  listingColor?: (listing: ListingLocation) => string;
+  highlightedListingIds?: ReadonlySet<string> | null;
   listingScale?: ReturnType<typeof listingMetricScale>;
   onDetailZoom?: (active: boolean) => void;
   groupIds?: ReadonlySet<string> | null;
@@ -31,7 +36,8 @@ interface Props {
   onSelectListing: (listing: ListingLocation) => void;
 }
 export default function DistrictMap({ geometry, prices, listings, metric, selectedDistrict,
-  hoveredDistrict, selectedListingId, showListings, showBasemap, showDistricts, focusRequest, onHover, onSelect, onSelectListing, groupIds, onSelectGroup, listingScale, onDetailZoom }: Props) {
+  hoveredDistrict, selectedListingId, showListings, showBasemap, showDistricts, focusRequest, onHover, onSelect, onSelectListing, groupIds, onSelectGroup, listingScale, onDetailZoom, listingColor, highlightedListingIds, searchArea }: Props) {
+  const emphasizedIds = highlightedListingIds ?? groupIds;
   const container = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -60,6 +66,8 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
     }));
   }, [geometry, transform, districtsVisible]);
   const tiles = useMemo(() => showBasemap ? visibleTiles(transform, size.width, size.height) : [], [transform, size, showBasemap]);
+  const areaGeometry = useMemo(() => searchArea ? radiusGeometry(searchArea) : null, [searchArea]);
+  const searchPoint = searchArea ? transform.apply(project(searchArea.location.longitude, searchArea.location.latitude)) : null;
   useEffect(() => {
     if (!container.current) return;
     const observer = new ResizeObserver(([entry]) => {
@@ -91,6 +99,15 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
     ));
   }, [focusRequest, geometry, size]);
   useEffect(() => {
+    const element = svg.current, behavior = zoomBehavior.current;
+    // Undefined leaves the existing SD1/SD2 focus behavior untouched. Null
+    // explicitly clears an SD3 location and restores the district overview.
+    if (!element || !behavior || searchArea === undefined) return;
+    select(element).call(behavior.transform, searchArea
+      ? focusedAreaTransform(searchArea, size.width, size.height)
+      : fittedTransform(geometry, size.width, size.height));
+  }, [searchArea, geometry, size]);
+  useEffect(() => {
     const element = canvas.current;
     if (!element) return;
     const ratio = window.devicePixelRatio || 1;
@@ -107,20 +124,20 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       const radius = highlight ? radii.normal + 1 : radii.normal;
       context.strokeStyle = highlight ? CHART_COLORS.selected : '#FFFFFF';
       context.lineWidth = highlight ? 1.5 : .75;
-      context.globalAlpha = highlight ? .95 : groupIds ? .25 : .65;
+      context.globalAlpha = highlight ? .95 : emphasizedIds ? .25 : .65;
       for (const listing of listings) {
-        if (Boolean(groupIds?.has(listing.id)) !== highlight) continue;
+        if (Boolean(emphasizedIds?.has(listing.id)) !== highlight) continue;
         const [x, y] = transform.apply(project(listing.longitude, listing.latitude));
         if (x < -radius || y < -radius || x > size.width + radius || y > size.height + radius) continue;
         context.beginPath();
-        context.fillStyle = listingScale?.color(listing) ?? CHART_COLORS.high;
+        context.fillStyle = listingColor?.(listing) ?? listingScale?.color(listing) ?? CHART_COLORS.high;
         context.arc(x, y, radius, 0, Math.PI * 2);
         context.fill();
         context.stroke();
       }
     }
     drawMarkers(false);
-    if (groupIds) drawMarkers(true);
+    if (emphasizedIds) drawMarkers(true);
     const selected = listings.find(listing => listing.id === selectedListingId);
     if (selected) {
       const [x, y] = transform.apply(project(selected.longitude, selected.latitude));
@@ -131,12 +148,12 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       context.fill();
       context.beginPath();
       context.arc(x, y, radii.selected, 0, Math.PI * 2);
-      context.fillStyle = listingScale?.color(selected) ?? CHART_COLORS.high;
+      context.fillStyle = listingColor?.(selected) ?? listingScale?.color(selected) ?? CHART_COLORS.high;
       context.strokeStyle = CHART_COLORS.selected;
       context.lineWidth = 2;
       context.fill(); context.stroke();
     }
-  }, [listings, transform, size, showListings, selectedListingId, groupIds, listingScale]);
+  }, [listings, transform, size, showListings, selectedListingId, emphasizedIds, listingScale, listingColor]);
   function updateGesture(event: PointerEvent<SVGSVGElement>) {
     if (gesture.current.active && movedBeyondClick(gesture.current.start, [event.clientX, event.clientY])) gesture.current.moved = true;
   }
@@ -155,7 +172,7 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   }
   function resetView() {
     if (svg.current && zoomBehavior.current) select(svg.current).call(zoomBehavior.current.transform,
-      fittedTransform(geometry, size.width, size.height));
+      searchArea ? focusedAreaTransform(searchArea, size.width, size.height) : fittedTransform(geometry, size.width, size.height));
   }
   function boxPoint(event: PointerEvent<HTMLDivElement>): Point {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -174,7 +191,7 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
         <button type="button" onClick={() => changeZoom(2)} aria-label="Zoom in">+</button>
         <button type="button" onClick={() => changeZoom(.5)} aria-label="Zoom out">−</button>
       </div>
-      <button className="recenter-button" type="button" onClick={resetView} title="Fit all Stockholm districts" aria-label="Recenter map">Recenter</button>
+      <button className="recenter-button" type="button" onClick={resetView} title={searchArea ? 'Fit the selected search area' : 'Fit all Stockholm districts'} aria-label="Recenter map">Recenter</button>
       {onSelectGroup && showListings && <div className="map-selection-tools" role="group" aria-label="Listing selection tools">
         {(['rectangle', 'lasso'] as const).map(tool => <button key={tool} type="button"
           aria-pressed={drawingEnabled && selectionTool === tool}
@@ -216,8 +233,19 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
           onMouseEnter={() => { if (!(gesture.current.active && gesture.current.moved)) onHover(district); }} onMouseLeave={() => onHover(null)}
           onClick={() => onSelect(district)}><title>{district}</title></path>)}
       </g>}
+      {areaGeometry && <path className="map-search-radius" d={screenDistrictPath(transform)(areaGeometry) ?? ''}
+        fill="#2357B5" fillOpacity={.07} stroke="#2357B5" strokeWidth={2} strokeDasharray="6 4" pointerEvents="none">
+        <title>{`${formatDistance(searchArea!.radiusMeters)} search radius`}</title>
+      </path>}
     </svg>
     <canvas ref={canvas} className="listing-canvas" aria-hidden="true" />
+    {searchPoint && searchArea && <svg className="map-search-overlay" width={size.width} height={size.height} role="img"
+      aria-label={`Search location: ${searchArea.location.label}. Radius ${formatDistance(searchArea.radiusMeters)}.`}>
+      <g transform={`translate(${searchPoint[0]} ${searchPoint[1]})`}>
+        <path d="M0 0C-4-6-11-13-11-20a11 11 0 1 1 22 0C11-13 4-6 0 0Z" fill="#2357B5" stroke="white" strokeWidth={2} />
+        <circle cx={0} cy={-20} r={4} fill="white" />
+      </g>
+    </svg>}
     {districtsVisible && <svg className="map-label-overlay" width={size.width} height={size.height} aria-hidden="true" focusable="false">
       <g className="map-labels" pointerEvents="none">
         {paths.map(({ district, center }) => <text key={district} x={center[0]} y={center[1]} textAnchor="middle"
