@@ -19,8 +19,6 @@ def get_model_registry(request: Request) -> ModelRegistry:
     return cast(ModelRegistry, request.app.state.model_registry)
 
 
-# FastAPI dependency for getting an MLflow client.
 MlflowClientDep = Annotated[MlflowClient, Depends(get_mlflow_client)]
 
-# FastAPI dependency for getting the model registry.
 ModelRegistryDep = Annotated[ModelRegistry, Depends(get_model_registry)]

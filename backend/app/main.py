@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from mlflow import MlflowClient
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from app.compute.clustering import ClusteringCache
 from app.exception_handling import register_exception_handlers
 from app.remote_services.mlflow.config import MlflowConfig
 from app.remote_services.mlflow.model.model_registry import ModelRegistry
@@ -16,6 +17,7 @@ from app.remote_services.postgres.db_engine_factory import create_async_postgres
 from app.router import (
     amenities,
     cholorheth_map,
+    clustering,
     health,
     hello,
     listing_comparison,
@@ -29,6 +31,8 @@ logger = getLogger("uvicorn.error")
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Manage application resources."""
+    app.state.clustering_cache = ClusteringCache(max_cache_size=20)
+
     engine: AsyncEngine = create_async_postgres_engine(
         db_user,
         kwargs=postgres_engine_kwargs,
@@ -42,7 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.mlflow_client = MlflowClient()
 
     model_registry = ModelRegistry()
-    model_registry.load_all()
+    # model_registry.load_all()
     app.state.model_registry = model_registry
     try:
         yield
@@ -66,3 +70,4 @@ app.include_router(cholorheth_map.router)
 app.include_router(scatterplots.router)
 app.include_router(listing_comparison.router)
 app.include_router(amenities.router)
+app.include_router(clustering.router)

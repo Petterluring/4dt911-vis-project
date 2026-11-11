@@ -27,7 +27,8 @@ dev = [
     "pytest>=9.1.0,<10.0.0",
     "types-PyYAML>=6.0.12",
     "httpx2>=2.13.1",
-    "pandas-stubs>=3.1.0"
+    "pandas-stubs>=3.1.0",
+    "scikit-learn-stubs",
 ]
 
 [tool.poetry]

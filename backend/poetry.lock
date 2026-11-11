@@ -2204,6 +2204,19 @@ scipy = ">=1.10.0"
 threadpoolctl = ">=3.5.0"
 
 [[package]]
+name = "scikit-learn-stubs"
+version = "0.0.3"
+description = "scikit-learn stubs from the Microsoft python-type-stubs repository"
+optional = true
+python-versions = ">=3.9"
+groups = ["main"]
+markers = "extra == \"dev\""
+files = [
+    {file = "scikit_learn_stubs-0.0.3-py3-none-any.whl", hash = "sha256:5d51257ab62c79d265fa7b05e69ad64b038ac7803bfb1d6490562d4da3109aae"},
+    {file = "scikit_learn_stubs-0.0.3.tar.gz", hash = "sha256:6a41fd3e26aedb923298c3f68a0746d2eed757f24615173f900ce2b942d70814"},
+]
+
+[[package]]
 name = "scipy"
 version = "1.18.1"
 description = "Fundamental algorithms for scientific computing in Python"
@@ -3070,9 +3083,9 @@ test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_it
 type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 
 [extras]
-dev = ["httpx2", "mypy", "pandas-stubs", "pytest", "ruff", "types-PyYAML"]
+dev = ["httpx2", "mypy", "pandas-stubs", "pytest", "ruff", "scikit-learn-stubs", "types-PyYAML"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.14.0,<3.15.0"
-content-hash = "e4ac5c7fcae450b2cb45283459754528920f9b2cce2f3261bfd98d43e91374af"
+content-hash = "d9d38a05c3221e5de355855c2397812fc8ab8449509196f8da24c66730b274a5"
