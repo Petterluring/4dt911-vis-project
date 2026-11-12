@@ -46,7 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.mlflow_client = MlflowClient()
 
     model_registry = ModelRegistry()
-    # model_registry.load_all()
+    model_registry.load_all()
     app.state.model_registry = model_registry
     try:
         yield
