@@ -215,3 +215,20 @@ The summary reports medians for price, bedrooms and capacity, mean listing ratin
 and counts by district and room type. Missing values are omitted from numeric
 aggregates. Hover or focus a row to preview that listing, or select it to open
 its details. **Clear group** restores the full filtered table.
+
+### Property positioning (SD4)
+
+Open **Positioning** in the sidebar and change the district, room type, capacity,
+bedrooms, beds or amenities, then select **Calculate** to run the comparison and prediction. Choose
+5, 10, 20 or 50 comparables. Their asking-price histogram and median provide
+context for the estimated nightly asking price. Selecting a comparable opens
+its details and focuses the map. The bar chart reports signed contributions
+in SEK relative to the model baseline.
+
+The frontend loads amenity choices from GET /amenities/unique_values and
+sends the scenario to POST /listing-comparisons/compare and
+POST /listing-comparisons/predict. Similarity uses the selected amenity names;
+the current prediction model uses their count. The location input is a
+district, as supported by the API. The sidebar combines filters and selection details, including the selected
+listing's amenities from POST /amenities. Positioning has its own tab;
+Clustering is reserved for a later implementation.

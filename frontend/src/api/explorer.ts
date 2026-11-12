@@ -27,12 +27,15 @@ export function numeric(value: unknown): number | null {
   const result = Number(value);
   return Number.isFinite(result) ? result : null;
 }
-async function post(path: string, body: unknown, signal: AbortSignal): Promise<unknown> {
+export async function post(path: string, body: unknown, signal: AbortSignal): Promise<unknown> {
   const response = await fetch(`/api${path}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal,
   });
   if (!response.ok) throw new Error(`Request failed (${response.status}). Check the backend connection.`);
-  return response.json();
+  // Airbnb IDs can exceed the range of exact JavaScript integers.
+  return JSON.parse(await response.text(), (key, value: unknown, context?: { source?: string }) =>
+    key === 'id' && typeof value === 'number' && !Number.isSafeInteger(value) &&
+      context?.source && /^\d+$/.test(context.source) ? context.source : value);
 }
 function prices(value: unknown): DistrictPrices[] {
   return rows(value).flatMap(row => !isDistrict(row.district) ? [] : [{
@@ -67,6 +70,23 @@ export function parseScatterplots(value: unknown): ScatterplotStats {
 export async function fetchScatterplots(signal: AbortSignal): Promise<ScatterplotStats> {
   return parseScatterplots(await post('/scatterplots/district-stats', { districts: DISTRICTS }, signal));
 }
+export function parseListing(row: Row): ListingLocation | null {
+  const latitude = numeric(row.latitude), longitude = numeric(row.longitude);
+  if ((typeof row.id !== 'number' && typeof row.id !== 'string') || latitude == null || longitude == null ||
+      Math.abs(latitude) > 85.051129 || Math.abs(longitude) > 180) return null;
+  const id = String(row.id);
+  return {
+    id, latitude, longitude, name: optionalText(row.name),
+    listing_url: optionalText(row.listing_url), picture_url: optionalText(row.picture_url),
+    district: isDistrict(row.district) ? row.district : null,
+    room_type: optionalText(row.room_type), property_type: optionalText(row.property_type),
+    price: numeric(row.price), accommodates: numeric(row.accommodates),
+    bedrooms: numeric(row.bedrooms), beds: numeric(row.beds),
+    bathrooms_text: optionalText(row.bathrooms_text),
+    review_scores_rating: numeric(row.review_scores_rating),
+    number_of_reviews: numeric(row.number_of_reviews), minimum_nights: numeric(row.minimum_nights),
+  };
+}
 export async function fetchListings(signal: AbortSignal): Promise<ListingLocation[]> {
   const locations = new Map<string, ListingLocation>();
   const pageSize = 1000;
@@ -74,21 +94,8 @@ export async function fetchListings(signal: AbortSignal): Promise<ListingLocatio
   for (let offset = 0; ; offset += pageSize) {
     const page = rows(await post('/choropleth-map/listings', { columns: LISTING_COLUMNS, limit: pageSize, offset }, signal));
     for (const row of page) {
-      const latitude = numeric(row.latitude), longitude = numeric(row.longitude);
-      if ((typeof row.id === 'number' || typeof row.id === 'string') && latitude != null && longitude != null && Math.abs(latitude) <= 85.051129 && Math.abs(longitude) <= 180) {
-        const id = String(row.id);
-        locations.set(id, {
-          id, latitude, longitude, name: optionalText(row.name),
-          listing_url: optionalText(row.listing_url), picture_url: optionalText(row.picture_url),
-          district: isDistrict(row.district) ? row.district : null,
-          room_type: optionalText(row.room_type), property_type: optionalText(row.property_type),
-          price: numeric(row.price), accommodates: numeric(row.accommodates),
-          bedrooms: numeric(row.bedrooms), beds: numeric(row.beds),
-          bathrooms_text: optionalText(row.bathrooms_text),
-          review_scores_rating: numeric(row.review_scores_rating),
-          number_of_reviews: numeric(row.number_of_reviews), minimum_nights: numeric(row.minimum_nights),
-        });
-      }
+      const listing = parseListing(row);
+      if (listing) locations.set(listing.id, listing);
     }
     if (page.length < pageSize) break;
   }

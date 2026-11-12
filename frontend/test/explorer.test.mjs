@@ -342,3 +342,42 @@ test('lasso includes points inside a concave shape but excludes its cutout', asy
   assert.deepEqual(listingsInLasso(listings, transform, lasso).map(item => item.id), ['inside']);
   assert.deepEqual(listingsInLasso(listings, transform, lasso.slice(0, 2)), []);
 });
+
+test('positioning sends amenities to both endpoints and reads signed price contributions in SEK', async () => {
+  const { fetchComparables, fetchPrediction } = await server.ssrLoadModule('/src/api/positioning.ts');
+  const requests = [];
+  globalThis.fetch = async (path, init) => {
+    requests.push([path, JSON.parse(init.body)]);
+    return path.endsWith('/predict')
+      ? reply([{ predicted_price_sek: 988.53, explanation: { baseline_sek: 2063.68, contributions_sek: { room_type: -551.61, district: 301.80, beds: 0 } } }])
+      : reply([{ id: 42, latitude: 59.31, longitude: 18.06, price: 935, similarity: .87, review_scores_rating: 4.44 }]);
+  };
+  const input = { district: 'Bromma', room_type: 'Private room', accommodates: 2, bedrooms: 1, beds: 1, amenities: ['Wifi'] };
+  const matches = await fetchComparables(input, 5, signal());
+  const prediction = await fetchPrediction(input, signal());
+  assert.equal(requests[0][0], '/api/listing-comparisons/compare');
+  assert.equal(requests[0][1].top_n, 5);
+  assert.deepEqual(requests[0][1].amenities, ['Wifi']);
+  assert.deepEqual(requests[1], ['/api/listing-comparisons/predict', input]);
+  assert.equal(matches[0].listing.id, '42');
+  assert.equal(matches[0].similarity, .87);
+  assert.equal(prediction.price, 988.53);
+  assert.equal(prediction.baseline, 2063.68);
+  assert.deepEqual(prediction.contributions.map(item => item.contribution), [-551.61, 301.8, 0]);
+});
+
+test('amenities use the exact ID of listings whose ID exceeds JavaScript integer precision', async () => {
+  const { fetchListingAmenities } = await server.ssrLoadModule('/src/api/positioning.ts');
+  const id = '1674762291066512278';
+  globalThis.fetch = async (path, init) => {
+    if (path === '/api/choropleth-map/listings') {
+      return new Response('[{"id":' + id + ',"latitude":59.3,"longitude":18.1}]');
+    }
+    assert.equal(path, '/api/amenities');
+    assert.deepEqual(JSON.parse(init.body), { listing_ids: [id] });
+    return reply([{ amenity: 'Wifi' }, { amenity: 'Kitchen' }, { amenity: 'Wifi' }]);
+  };
+  const [listing] = await api.fetchListings(signal());
+  assert.equal(listing.id, id);
+  assert.deepEqual(await fetchListingAmenities(listing.id, signal()), ['Kitchen', 'Wifi']);
+});

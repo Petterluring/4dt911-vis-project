@@ -224,6 +224,45 @@
 .listing-legend--separated { border-top: 1px solid var(--border); margin-top: 10px; padding-top: 10px; }
 .listing-legend > div:first-child { display: flex; justify-content: space-between; gap: 8px; }
 .listing-legend > div:first-child span { white-space: nowrap; }
-.listing-legend-gradient { background: linear-gradient(to right, #A178DB, #3A176C); }
-.listing-missing-key { background: #87969C; border-radius: 50%; }
+.listing-legend-gradient { background: linear-gradient(to right, #949494, #171717); }
+.listing-missing-key { background: #D8D8D8; border-radius: 50%; }
 .listing-selected-key { background: transparent; border: 2px solid var(--selected); border-radius: 50%; }
+
+.explorer-sidebar-tabs { position: sticky; top: 0; z-index: 2; background: var(--surface); }
+.explorer-sidebar-tabs button { flex: 1; min-width: 0; padding-inline: 4px; }
+.positioning { padding: 12px; font-size: 12px; }
+.positioning h2 { margin-bottom: 12px; font-size: 16px; }
+.positioning h3 { margin: 12px 0 6px; font-size: 12px; }
+.positioning p { margin: 5px 0; color: var(--text-secondary); }
+.positioning-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.positioning-inputs input, .positioning-inputs select, .positioning-amenities input[type="search"] { display: block; margin-top: 3px; }
+.positioning-inputs input, .positioning-amenities input[type="search"] { width: 100%; min-height: 32px; padding: 4px 8px; border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); }
+.positioning-amenities { margin-top: 10px; padding: 8px; border: 1px solid var(--border); border-radius: var(--radius); }
+.positioning-amenities summary { cursor: pointer; font-weight: 600; }
+.positioning-options { display: grid; gap: 4px; max-height: 130px; margin-top: 6px; overflow: auto; }
+.positioning-options label { display: flex; align-items: start; gap: 4px; overflow-wrap: anywhere; }
+.positioning-options input { accent-color: var(--primary); }
+.positioning-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.positioning-chips button { border: 1px solid var(--border); border-radius: 8px; background: var(--background); color: var(--text); }
+.positioning-prices { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; margin: 10px 0; }
+.positioning-prices div { padding: 6px; background: var(--background); border-radius: 4px; }
+.positioning-prices dt { color: var(--text-secondary); font-size: 10px; }
+.positioning-prices dd { margin: 4px 0 0; font-weight: 650; }
+.positioning-histogram { margin: 12px 0; }
+.positioning-histogram svg { display: block; width: 100%; max-height: 100px; margin-top: 6px; }
+.positioning-table { overflow: auto; }
+.positioning-table table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.positioning-table th, .positioning-table td { padding: 5px 3px; border-bottom: 1px solid var(--border); text-align: right; }
+.positioning-table th:first-child { text-align: left; }
+.positioning-table button { text-align: left; }
+.positioning-contributions { list-style: none; padding: 0; }
+.positioning-contributions li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px; margin-bottom: 6px; }
+.positioning-contribution-track { position: relative; grid-column: 1 / -1; height: 7px; background: linear-gradient(to right, var(--background) 49.5%, var(--text-secondary) 49.5% 50.5%, var(--background) 50.5%); }
+.positioning-contribution-track i { position: absolute; height: 100%; background: var(--primary); }
+.positioning-contribution-track .is-negative { background: #AD632F; }
+
+.listing-details__amenities { margin-bottom: 12px; }
+.listing-details__amenities p { margin-bottom: 0; font-size: 11px; color: var(--text-secondary); }
+.listing-details__amenities ul { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 6px 0 0; padding: 0; }
+.listing-details__amenities li { padding: 3px 7px; border-radius: 8px; background: var(--background); font-size: 11px; overflow-wrap: anywhere; }
+.positioning-calculate { width: 100%; margin-top: 10px; min-height: 32px; border: 0; border-radius: var(--radius); background: var(--primary); color: var(--surface); }

@@ -1,10 +1,22 @@
-import { useState } from 'react';
-import type { ListingLocation } from '../../interfaces/explorer';
+import { useEffect, useState } from 'react';
+import { fetchListingAmenities } from '../../api/positioning';
+import type { ListingLocation, Resource } from '../../interfaces/explorer';
 import { formatNumber } from '../../utils/explorer';
 import { safeExternalUrl } from '../../utils/listing';
 interface Props { listing: ListingLocation; onClose: () => void }
 export default function ListingDetails({ listing, onClose }: Props) {
   const [imageFailed, setImageFailed] = useState(false);
+  const [amenities, setAmenities] = useState<Resource<string[]>>({ status: 'loading' });
+  const [amenityRevision, setAmenityRevision] = useState(0);
+  useEffect(() => {
+    const request = new AbortController();
+    void fetchListingAmenities(listing.id, request.signal).then(data => {
+      if (!request.signal.aborted) setAmenities({ status: 'success', data });
+    }).catch(() => {
+      if (!request.signal.aborted) setAmenities({ status: 'error', error: 'Amenities could not be loaded.' });
+    });
+    return () => request.abort();
+  }, [listing.id, amenityRevision]);
   const imageUrl = safeExternalUrl(listing.picture_url);
   const listingUrl = safeExternalUrl(listing.listing_url);
   const name = listing.name ?? `Listing #${listing.id}`;
@@ -33,6 +45,15 @@ export default function ListingDetails({ listing, onClose }: Props) {
         <div><dt>Property type</dt><dd>{listing.property_type ?? 'Not available'}</dd></div>
         <div><dt>Minimum stay</dt><dd>{listing.minimum_nights == null ? 'Not available' : `${formatNumber(listing.minimum_nights)} ${listing.minimum_nights === 1 ? 'night' : 'nights'}`}</dd></div>
       </dl>
+      <section className="listing-details__amenities" aria-label="Listing amenities">
+        <h3>Amenities{amenities.data ? ` (${amenities.data.length})` : ''}</h3>
+        {amenities.status === 'loading' && <p role="status">Loading amenities.</p>}
+        {amenities.status === 'error' && <p role="alert">{amenities.error} <button className="text-button" type="button"
+          onClick={() => { setAmenities({ status: 'loading' }); setAmenityRevision(value => value + 1); }}>Retry</button></p>}
+        {amenities.status === 'success' && (amenities.data.length
+          ? <ul>{amenities.data.map(amenity => <li key={amenity}>{amenity}</li>)}</ul>
+          : <p>No amenities listed.</p>)}
+      </section>
       {listingUrl && <a className="listing-details__link" href={listingUrl} target="_blank" rel="noopener noreferrer">View listing<span aria-hidden="true">↗</span></a>}
       <p className="listing-details__id">Listing #{listing.id}</p>
     </div>
