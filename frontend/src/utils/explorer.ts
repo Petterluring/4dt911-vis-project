@@ -40,7 +40,7 @@ export function metricScale(prices: DistrictPrices[], metric: PriceMetric) {
   return { min, max, color: (value: number | null | undefined) => value == null ? CHART_COLORS.missing : scale(value) };
 }
 
-export const LISTING_COLORS = { low: '#A178DB', high: '#3A176C', missing: '#87969C' };
+export const LISTING_COLORS = { low: '#949494', high: '#171717', missing: '#D8D8D8' };
 
 export function listingMetricScale(listings: ListingLocation[], prices: DistrictPrices[], metric: PriceMetric) {
   const housing = metric.endsWith('housing_price');

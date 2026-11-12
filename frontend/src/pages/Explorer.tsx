@@ -7,6 +7,7 @@ import { METRICS, formatNumber, listingMetricScale, metricScale } from '../utils
 import DistrictMap from '../components/explorer/DistrictMap';
 import DistrictDetails from '../components/explorer/DistrictDetails';
 import ListingDetails from '../components/explorer/ListingDetails';
+import PropertyPositioning from '../components/explorer/PropertyPositioning';
 import SelectionSummary from '../components/explorer/SelectionSummary';
 import ListingFiltersPanel from '../components/explorer/ListingFilters';
 import ListingRanking from '../components/explorer/ListingRanking';
@@ -17,6 +18,9 @@ import './Explorer.css';
 const EMPTY_LISTINGS: ListingLocation[] = [];
 export default function Explorer() {
   const [view, setView] = useState<'map' | 'listings'>('map');
+  const [sidebar, setSidebar] = useState<'listings' | 'positioning' | 'clustering'>('listings');
+  const [positioningOpened, setPositioningOpened] = useState(false);
+  const [comparable, setComparable] = useState<ListingLocation | null>(null);
   const [metric, setMetric] = useState<PriceMetric>('median_airbnb_price');
   const [mode, setMode] = useState<PriceMode>('median');
   const [showListings, setShowListings] = useState(true);
@@ -37,6 +41,7 @@ export default function Explorer() {
   const groupSource = useMemo(() => groupIds ? allListings.filter(listing => groupIds.has(listing.id)) : allListings, [allListings, groupIds]);
   const rankedListings = useMemo(() => groupIds ? listings.filter(listing => groupIds.has(listing.id)) : listings, [listings, groupIds]);
   function selectGroup(ids: string[], add: boolean) {
+    setSidebar('listings');
     setGroupIds(previous => new Set(add && previous ? [...previous, ...ids] : ids));
     setSelectedListingId(null); setFocusRequest(null);
     setSelectedDistrict(null); setHoveredDistrict(null);
@@ -53,6 +58,7 @@ export default function Explorer() {
     setSelectedDistrict(previous => previous === district ? null : district);
   }, []);
   const selectListing = useCallback((listing: ListingLocation) => {
+    setComparable(null); setSidebar('listings');
     setSelectedListingId(listing.id); setFocusRequest(null);
     setSelectionRevision(previous => previous + 1);
     setSelectedDistrict(showDistricts ? listing.district : null);
@@ -64,7 +70,15 @@ export default function Explorer() {
     // A new request also recentres when the same row is clicked twice.
     setFocusRequest(previous => ({ listing, sequence: (previous?.sequence ?? 0) + 1 }));
   }, [selectListing]);
-  const selectedListing = useMemo(() => listings.find(listing => listing.id === selectedListingId) ?? null, [listings, selectedListingId]);
+  function selectComparable(listing: ListingLocation) {
+    selectRankedListing(listing);
+    setComparable(listing);
+    setView('map');
+  }
+  const focusedComparable = comparable?.id === selectedListingId ? comparable : null;
+  const selectedListing = focusedComparable ?? listings.find(listing => listing.id === selectedListingId) ?? null;
+  const mapListings = useMemo(() => focusedComparable && !listings.some(item => item.id === focusedComparable.id)
+    ? [...listings, focusedComparable] : listings, [listings, focusedComparable]);
   const scale = useMemo(() => metricScale(data.prices.data ?? [], metric), [data.prices.data, metric]);
   const listingScale = useMemo(() => listingMetricScale(allListings, data.prices.data ?? [], metric), [allListings, data.prices.data, metric]);
   const districtLegend = showDistricts && !(showListings && detailZoom);
@@ -89,9 +103,9 @@ export default function Explorer() {
       <section className="explorer-map-view" hidden={view !== 'map'} aria-label="Map view">
         <div className="explorer__map panel">
           {data.geometry.status === 'success' ? <DistrictMap geometry={data.geometry.data} prices={data.prices.data ?? []}
-            listings={listings} listingScale={listingScale} onDetailZoom={setDetailZoom} groupIds={groupIds} onSelectGroup={data.listings.status === 'success' ? selectGroup : undefined} metric={metric} selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict}
+            listings={mapListings} listingScale={listingScale} onDetailZoom={setDetailZoom} groupIds={groupIds} onSelectGroup={data.listings.status === 'success' ? selectGroup : undefined} metric={metric} selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict}
             showListings={showListings} showBasemap={showBasemap} showDistricts={showDistricts} focusRequest={focusRequest}
-            onHover={setHoveredDistrict} onSelect={selectDistrict} selectedListingId={selectedListingId} onSelectListing={selectListing} />
+            onHover={setHoveredDistrict} onSelect={district => { selectDistrict(district); setSidebar('listings'); }} selectedListingId={selectedListingId} onSelectListing={selectListing} />
             : <div className="map-message" role={data.geometry.status === 'error' ? 'alert' : 'status'}>
               {data.geometry.status === 'error' ? data.geometry.error : 'Loading Stockholm district boundaries…'}
             </div>}
@@ -105,6 +119,7 @@ export default function Explorer() {
               <p className="metric-unit">{METRICS[metric].unit} · Linear colour scale</p>
               <label className="control-label" htmlFor="district-selection">Selected district</label>
               <select id="district-selection" disabled={!showDistricts} value={selectedDistrict ?? ''} onChange={event => {
+                setSidebar('listings');
                 setSelectedDistrict(event.target.value ? event.target.value as District : null);
                 setHoveredDistrict(null); setSelectedListingId(null); setFocusRequest(null);
               }}><option value="">All districts</option>{DISTRICTS.map(district => <option key={district} value={district}>{district}</option>)}</select>
@@ -146,17 +161,25 @@ export default function Explorer() {
         groupActive={groupIds !== null} selectedListingId={selectedListingId} selectionRevision={selectionRevision} onSelect={selectRankedListing} />}
     </div>
     <aside className="explorer-sidebar" aria-label="Controls and information">
-      <ListingFiltersPanel listings={groupSource} filters={filters} roomTypes={roomTypes} onFilters={changeFilters} />
-      <div className="map-information" aria-label="Selection details">
+      <div className="segmented explorer-sidebar-tabs" role="group" aria-label="Sidebar view">
+        <button type="button" aria-pressed={sidebar === 'listings'} onClick={() => setSidebar('listings')}>Filters &amp; Details</button>
+        <button type="button" aria-pressed={sidebar === 'positioning'} onClick={() => { setPositioningOpened(true); setSidebar('positioning'); }}>Positioning</button>
+        <button type="button" aria-pressed={sidebar === 'clustering'} onClick={() => setSidebar('clustering')}>Clustering</button>
+      </div>
+      {positioningOpened && <div hidden={sidebar !== 'positioning'}>
+        <PropertyPositioning roomTypes={roomTypes} onSelect={selectComparable} />
+      </div>}
+      <div className="map-information" aria-label="Filters and selection details" hidden={sidebar !== 'listings'}>
+        <ListingFiltersPanel listings={groupSource} filters={filters} roomTypes={roomTypes} onFilters={changeFilters} />
         {groupIds && <SelectionSummary listings={rankedListings} onClear={clearGroup} />}
         {selectedListing ? <div className="listing-card panel"><ListingDetails key={selectedListing.id} listing={selectedListing} onClose={() => { setSelectedListingId(null); setFocusRequest(null); }} /></div>
           : groupIds ? null : activeDistrict ? <div className="district-card panel"><DistrictDetails district={activeDistrict} tooltips={data.tooltips} /></div>
             : <div className="map-hint panel"><p className="eyebrow">Discover Stockholm</p><h2>Find your perspective</h2><p>{view === 'map' ? 'Hover a district or select a map marker to see its details.' : 'Select a row to see the listing details.'}</p></div>}
-        {errors && <div className="data-notice panel" role="status"><strong>Some data could not be loaded.</strong>
+      </div>
+      {errors && <div className="data-notice panel" role="status"><strong>Some data could not be loaded.</strong>
           <span>{[data.prices, data.tooltips, data.listings, data.scatterplots].find(resource => resource.status === 'error')?.error ?? data.geometry.error}</span>
           <button type="button" className="text-button" onClick={() => setRevision(value => value + 1)}>Retry data</button>
-        </div>}
-      </div>
+      </div>}
     </aside>
     <div className="sr-only" aria-live="polite">{selectedListing ? `Selected listing: ${selectedListing.name ?? selectedListing.id}` : selectedDistrict ? `Selected district: ${selectedDistrict}` : 'No selection'}</div>
   </main>;
