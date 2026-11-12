@@ -60,9 +60,99 @@ When developing the frontend, follow these guidelines:
 
 ## SABA - Stockholm Airbnb Analytics (SD1 and SD2)
 
-The home page is a full-screen district map. Open **Compare districts** to show
-both scatterplots side by side. On narrow screens they stack below the map.
+Use the **Map / Listings** switch at the top to choose the main view. On desktop,
+the left side occupies about 75% of the workspace and shows either the map and
+its two scatterplots or the sortable listing table. The right sidebar keeps
+listing filters and selection details in both views. Compact map settings and
+colour legends sit on the map. The desktop workspace fits the viewport; the
+listing table and sidebar can scroll independently. Filters, selections, and the map viewport
+are retained when switching views. On smaller screens the panels stack.
 The existing demo pages remain at `/demos/hello-fast-api` and `/demos/hello-world`.
+
+### Listing clusters (SD3)
+
+Use the existing **Clustering** sidebar tab next to **Filters & Details** and
+**Positioning** to open SD3. It contains coordinated profiles, price boxplots,
+cluster map markers, address search, nearby statistics, and local/overall price
+comparisons. Map/Listings remain the two header views, and tab switching preserves
+SD3 state and the other explorer tools.
+The map stays in the same persistent container and has the same position and
+dimensions across sidebar tabs. Clustering controls and collapsible summaries
+fit the normal sidebar; price charts use the existing fixed comparison panel
+below the map. The shared desktop and mobile map layout is preserved.
+
+Live API mode is the default: **POST `/api/clustering/perform`** supplies assignments
+and price statistics, joined with metadata from **POST `/api/choropleth-map/listings`**.
+Failures show a retryable error without synthetic fallback. For explicit development
+mock data, set `VITE_CLUSTERING_DATA_MODE=mock` in `frontend/.env.local` and restart
+Vite. Mock groups are fixed demonstration assignments; dynamic configuration is
+available in API mode and never substitutes synthetic results for a failed request.
+
+#### Clustering configuration and reruns
+
+The collapsible **Clustering configuration** section is inside the existing SD3
+sidebar. Select any combination of **Room type**, **Guest capacity**, **Bedrooms**,
+**Bathrooms**, and **Beds**, set **Number of clusters (K)**, and click
+**Run Clustering**. The initial request retains room type, guest capacity, bedrooms
+and beds with K=3; `VITE_CLUSTERING_N_CLUSTERS` can override that initial K.
+Bathrooms can be selected before running. Price and geographical coordinates are
+excluded from the feature whitelist.
+
+Draft edits do not send requests. The section summary always identifies the
+configuration that produced the displayed results, even when collapsed. Unapplied
+changes are marked separately. Each explicit run sends the selected settings to
+the existing endpoint, for example:
+
+```json
+{"features":["room_type","accommodates","bedrooms"],"n_clusters":4}
+```
+
+The Pydantic schema requires at least one of the five allowed features and an
+integer K of at least 2. KMeans also requires K not to exceed its sample count.
+After the first successful response, the UI uses the number of distinct listing
+assignments in that backend dataset as the upper bound. It does not derive a
+limit from the overview's coordinate-filtered listings or impose an arbitrary
+fixed maximum. Before that count is known, minimum/integer validation applies
+and any additional backend failure is shown normally. The displayed number of
+clusters is always the actual returned count, which can be lower than requested K.
+
+Applying a request immediately hides previous profiles, price plots and listing
+markers while calculation is in progress. The searched location, address text,
+radius and map viewport remain intact. A success replaces every coordinated view
+from one result set and resets cluster/listing selection, since the same numeric
+cluster ID can represent a different group after recalculation. Nearby summaries
+and local/overall comparisons use the new assignments. A failed run shows an
+error with no stale or synthetic results. **Retry clustering data** retries the
+last applied configuration; draft edits still require **Run Clustering**.
+
+Users can edit and apply a different valid configuration while another request
+is running. The loader aborts superseded fetches and accepts results only for
+the current request/retry identity, preventing late replies from overwriting
+newer results. Backend work may still finish server-side after a client abort.
+Repeated configurations use the backend's existing LRU cache; no frontend result
+cache or new endpoint was added. `metadata.configuration` records the submitted
+request and `metadata.inputListingCount` records the derived sample count in the
+frontend data contract; these are not assumed fields in the backend wire response.
+
+Configuration is disabled in explicit mock mode, with a visible explanation that
+the demonstration groups are fixed. The frontend does not implement another
+clustering algorithm to simulate changes to features or K.
+
+Validation: TypeScript/Vite build, ESLint, 50 frontend tests and 55 backend tests
+passed. Live browser tests verified the default configuration, three-feature K=4,
+all five features including bathrooms, K=4→2, coordinated counts/plots/colors,
+location/radius persistence, and selection resets. Controlled replies covered
+loading, supersession, errors/retry and empty results. Map bounds remained exactly
+equal to the existing layout at 320, 390, 768, 1024 and 1440px, with one persistent
+map instance and no runtime exceptions. Local screenshots and bounds are saved in
+the ignored `frontend/node_modules/.tmp/sd3-configuration/` directory.
+
+Implementation files: `src/components/clustering/ClusteringConfiguration.tsx`,
+`ListingClusters.tsx`, `ListingClusters.css`, `src/hooks/useListingClusters.ts`,
+`useClusteringData.ts`, `src/api/clustering.ts`, `src/interfaces/clustering.ts`,
+`src/utils/clusteringConfiguration.ts`, `test/clusteringConfiguration.test.mjs`,
+`test/clustering.test.mjs`, and this README. The shared explorer API, map container,
+map CSS, geographical calculations and backend production code are unchanged.
 
 ### Map layers and interactions
 
@@ -86,9 +176,45 @@ The existing demo pages remain at `/demos/hello-fast-api` and `/demos/hello-worl
   is selected across connected views. A map hint explains when listing clicks are enabled.
   Closing the card preserves the district selection. Hiding listings or choosing
   another district clears the listing selection. Dragging does not select items.
+- The **Districts** checkbox beside **Airbnb locations** and **Street map**
+  toggles the district layer, which is enabled initially. Disabling it hides
+  district fills, boundaries, names, the colour legend and district tooltips;
+  it clears the current district selection and hover, and disables the map metric
+  and district selectors. Listing details stay open, and listing clicks do not
+  select a district while this layer is hidden. Chart comparisons remain available.
+  Re-enabling restores the layer using the current metric. The viewport and zoom
+  are preserved when toggling; panning, zooming, Recenter and listing clicks still work.
 - The street map and listing layers can be independently hidden. If tiles fail,
   district boundaries and data still work. Backend failures show retry controls;
   no illustrative data is substituted.
+
+### Listing ranking and linked selection
+
+The table initially includes every located listing, including entries without a
+nightly price. Filters above the table combine minimum/maximum nightly price,
+minimum bedrooms and guest capacity, and room type. Price has two handles on
+one track; bedrooms and guests each have a single handle. Each slider uses the
+largest value allowed by the other filters. The rank column follows the current
+filter and sort order. Bounds are inclusive;
+zero-bedroom studios are retained, and unknown values are excluded only when a
+filter on that field is active. Reset filters restores the full collection.
+The filtered collection is shared by the table and map markers. District selection
+remains a highlight, and panning or zooming does not change the result set.
+Changing a filter clears the listing selection and pending map focus.
+
+Click a numeric column header to sort price, rating, reviews, bedrooms or guests.
+Click again to reverse direction. Missing values stay last in both directions;
+ties use listing ID. The default is ascending nightly price. Rows are virtualized
+at 40 px to keep thousands of listings responsive. The count shows matches / total.
+On narrow screens the columns scroll horizontally, while the rows scroll vertically.
+
+Hover a row for 300 ms or focus it by keyboard to see a photo, full title, district,
+room/property type, beds, bathrooms and minimum stay in a floating preview.
+The preview closes on Escape, blur, pointer leave, scrolling or resizing.
+Click a row or press Enter/Space to select it, open details and focus its map
+location. Arrow keys, Home and End move keyboard focus between rows. Selecting a
+map marker scrolls its row into view. Map focus preserves closer zoom levels.
+The table and filters use existing listing fields without backend changes.
 
 ### API and metric definitions
 
@@ -101,7 +227,7 @@ coordinates and the following backend-supported summary columns: `id`, `name`,
 `accommodates`, `bedrooms`, `beds`, `bathrooms_text`, `review_scores_rating`,
 `number_of_reviews`, and `minimum_nights`. These are fetched with the paginated
 coordinates because the current endpoint has no listing-ID filter. No raw
-CSV-only field is requested. Pictures are loaded only for the selected listing;
+CSV-only field is requested. Pictures are loaded for visible ranking rows and the selected listing;
 missing or failed images display a photo placeholder. External links and images require valid
 HTTPS URLs without embedded credentials. The card groups the image, price and
 rating, capacity facts, property type and minimum stay, with a link to the listing.
@@ -158,6 +284,36 @@ existing TypeScript loader, with mocked HTTP responses and the real district
 geometry file. Tests cover numeric normalization, the split API envelope,
 pagination, invalid coordinates, duplicate IDs, failure/cancellation behavior,
 all boundary-name joins, missing-price colors, tile alignment, screen-space bounds,
-listing metadata, marker hit testing, drag thresholds, URL validation and chart markup.
+listing metadata, marker hit testing, drag thresholds, URL validation, ranking order,
+large-list rendering, listing focus coordinates, and the persistent dashboard structure.
 An actual backend and network access to the tile server are needed for a live
 integration and browser smoke test.
+
+### Select listings on the map
+
+Choose **Rectangle** or **Lasso** beside the map zoom controls and drag over
+listing markers. The lasso closes on release. A new shape replaces the current
+group; hold Shift while dragging to add listings. Escape or clicking the active
+tool exits drawing mode.
+The table and summary use the selected listings that pass the active filters.
+The summary reports median and average nightly prices, median bedrooms and capacity, mean listing rating,
+and counts by district and room type. Missing values are omitted from numeric
+aggregates. Hover or focus a row to preview that listing, or select it to open
+its details. **Clear group** restores the full filtered table.
+
+### Property positioning (SD4)
+
+Open **Positioning** in the sidebar and change the district, room type, capacity,
+bedrooms, beds or amenities, then select **Calculate** to run the comparison and prediction. Choose
+5, 10, 20 or 50 comparables (default: 20). Their asking-price histogram and median provide
+context for the estimated nightly asking price. Select a histogram bar to
+highlight its listings. Selecting a comparable focuses it in the current view.
+The star plot shows the magnitude and sign of each contribution in SEK.
+
+The frontend loads amenity associations from POST /amenities at startup
+and ranks all options by the number of listings that have them. It sends the scenario to POST /listing-comparisons/compare and
+POST /listing-comparisons/predict. Similarity uses the selected amenity names;
+the current prediction model uses their count. The location input is a
+district, as supported by the API. The sidebar combines filters and selection details, including the selected
+listing's amenities from POST /amenities. Positioning has its own tab;
+Clustering is reserved for a later implementation.

@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { scaleLinear } from 'd3';
+import { DISTRICTS } from '../../interfaces/explorer';
 import type { District } from '../../interfaces/explorer';
-import { CHART_COLORS, formatCompact, formatNumber } from '../../utils/explorer';
+import { CHART_COLORS, formatCompact } from '../../utils/explorer';
 export interface ScatterPoint { district: District; x: number; y: number }
 interface Props {
   id: string; title: string; subtitle: string; points: ScatterPoint[];
   xLabel: string; yLabel: string; xFromZero?: boolean; yFromZero?: boolean;
   selectedDistrict: District | null; hoveredDistrict: District | null;
+  headerControls?: ReactNode;
   onHover: (district: District | null) => void; onSelect: (district: District) => void;
 }
+const tooltipNumber = new Intl.NumberFormat('en-SE', { maximumFractionDigits: 2 });
 function domain(values: number[], fromZero: boolean): [number, number] {
   if (!values.length) return [0, 1];
   const min = Math.min(...values), max = Math.max(...values);
@@ -17,25 +21,31 @@ function domain(values: number[], fromZero: boolean): [number, number] {
   return [min - padding, max + padding];
 }
 export default function Scatterplot({ id, title, subtitle, points, xLabel, yLabel,
-  xFromZero = false, yFromZero = false, selectedDistrict, hoveredDistrict, onHover, onSelect }: Props) {
+  xFromZero = false, yFromZero = false, selectedDistrict, hoveredDistrict, headerControls, onHover, onSelect }: Props) {
   const container = useRef<HTMLDivElement>(null);
-  const [width, setWidth] = useState(480);
+  const [size, setSize] = useState({ width: 480, height: 164 });
   useEffect(() => {
     if (!container.current) return;
-    const observer = new ResizeObserver(([entry]) => setWidth(Math.max(280, entry.contentRect.width)));
+    const observer = new ResizeObserver(([entry]) => setSize({ width: Math.max(240, entry.contentRect.width), height: Math.max(112, entry.contentRect.height) }));
     observer.observe(container.current);
     return () => observer.disconnect();
   }, []);
-  const height = 240, margin = { top: 12, right: 20, bottom: 52, left: 62 };
+  const { width, height } = size;
+  const margin = { top: 12, right: 16, bottom: 44, left: 58 };
   const scales = useMemo(() => ({
-    x: scaleLinear().domain(domain(points.map(point => point.x), xFromZero)).nice(4).range([62, width - 20]),
-    y: scaleLinear().domain(domain(points.map(point => point.y), yFromZero)).nice(4).range([188, 12]),
-  }), [points, width, xFromZero, yFromZero]);
-  const active = points.find(point => point.district === (hoveredDistrict ?? selectedDistrict));
+    x: scaleLinear().domain(domain(points.map(point => point.x), xFromZero)).nice(4).range([58, width - 16]),
+    y: scaleLinear().domain(domain(points.map(point => point.y), yFromZero)).nice(4).range([height - 44, 12]),
+  }), [points, width, height, xFromZero, yFromZero]);
+  const hovered = points.find(point => point.district === hoveredDistrict);
+  const missing = DISTRICTS.length - points.length;
   return <article className="scatterplot" aria-labelledby={`${id}-title`}>
-    <h3 id={`${id}-title`}>{title}</h3><p className="muted chart-subtitle">{subtitle}</p>
-    <div ref={container}>
-      {points.length ? <svg viewBox={`0 0 ${width} ${height}`} width="100%" role="group" aria-label={title}>
+    <header className="scatterplot__header"><h3 id={`${id}-title`}>{title}</h3>
+      {missing > 0 && <span className="chart-status" title={`${missing} districts without complete data`}>{points.length}/{DISTRICTS.length}</span>}
+      {headerControls}
+    </header>
+    <p className="sr-only" id={`${id}-description`}>{subtitle} {points.length} districts{missing > 0 ? `; ${missing} without complete data` : ''}. Linear axes.</p>
+    <div className="chart-canvas" ref={container}>
+      {points.length ? <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" role="group" aria-label={title} aria-describedby={`${id}-description`}>
         {scales.y.ticks(4).map(tick => <g key={tick}>
           <line className="chart-grid" x1={margin.left} x2={width - margin.right} y1={scales.y(tick)} y2={scales.y(tick)} />
           <text className="chart-tick" x={margin.left - 10} y={scales.y(tick)} dy=".35em" textAnchor="end">{formatCompact(tick)}</text>
@@ -50,18 +60,18 @@ export default function Scatterplot({ id, title, subtitle, points, xLabel, yLabe
           stroke={point.district === hoveredDistrict || point.district === selectedDistrict ? 'var(--text)' : 'var(--surface)'} strokeWidth={1.5}
           opacity={selectedDistrict && point.district !== selectedDistrict && point.district !== hoveredDistrict ? .4 : .9}
           role="button" tabIndex={0} aria-pressed={point.district === selectedDistrict}
-          aria-label={`${point.district}: ${xLabel} ${formatNumber(point.x)}, ${yLabel} ${formatNumber(point.y)}`}
+          aria-describedby={point.district === hoveredDistrict ? `${id}-tooltip` : undefined}
+          aria-label={`${point.district}: ${xLabel} ${tooltipNumber.format(point.x)}, ${yLabel} ${tooltipNumber.format(point.y)}`}
           onMouseEnter={() => onHover(point.district)} onMouseLeave={() => onHover(null)}
           onFocus={() => onHover(point.district)} onBlur={() => onHover(null)}
           onClick={() => onSelect(point.district)} onKeyDown={event => {
             if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(point.district); }
-          }}><title>{point.district}</title></circle>)}
+          }}><title>{`${point.district}: ${tooltipNumber.format(point.x)} / ${tooltipNumber.format(point.y)}`}</title></circle>)}
       </svg> : <div className="chart-empty">No complete district data is available for this plot.</div>}
+      {hovered && <div className="chart-tooltip" id={`${id}-tooltip`} role="tooltip" style={{
+        left: Math.max(4, Math.min(width - 216, scales.x(hovered.x) + 12)),
+        top: Math.max(4, Math.min(height - 84, scales.y(hovered.y) - 76)),
+      }}><strong>{hovered.district}</strong><span>{xLabel}: {tooltipNumber.format(hovered.x)}</span><span>{yLabel}: {tooltipNumber.format(hovered.y)}</span></div>}
     </div>
-    <div className="chart-readout" aria-live="polite">
-      {active ? <><strong>{active.district}</strong><span>{xLabel}: {formatNumber(active.x)} · {yLabel}: {formatNumber(active.y)}</span></>
-        : <span>Hover or select a district to compare its values.</span>}
-    </div>
-    <p className="muted chart-count">{points.length} districts{points.length < 11 ? ` · ${11 - points.length} without complete data` : ''} · Linear axes</p>
   </article>;
 }

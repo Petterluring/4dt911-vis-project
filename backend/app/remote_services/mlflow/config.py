@@ -1,80 +1,70 @@
 """Module for managing MLflow configuration."""
 
 from logging import getLogger
-from os import environ, getenv
+from os import environ
 from pathlib import Path
 
-from app.utils.path import load_env_file, validate_path
+from app.remote_services.mlflow.users import MlFlowUser
+from app.utils.path import validate_path
 from mlflow import set_tracking_uri
 
-logger = getLogger(__name__)
+from .constants import MLFLOW_CERT_FILE
 
-# Default paths for MLflow related files.
-# If all project members use the same paths, we can avoid hardcoding them in multiple
-# places.
-MLFLOW_RESOURCES = Path().home() / "4dt911-resources" / "mlflow"
-MLFLOW_ENV_FILE = MLFLOW_RESOURCES / "config.env"
-MLFLOW_CERT_FILE = MLFLOW_RESOURCES / "SSL_certificate.crt"
+logger = getLogger("uvicorn.error")
 
 
-def set_tracking_and_credentials_from_env() -> None:
-    """Set MLflow tracking URI and credentials from environment variables.
+class MlflowConfig:
+    """Configure MLflow through environment variables."""
 
-    Expected environment variables in .env file:
-        - MLFLOW_TRACKING_URI: The URI for the MLflow tracking server.
-        - MLFLOW_TRACKING_USERNAME: The username for MLflow tracking server authentication.
-        - MLFLOW_TRACKING_PASSWORD: The password for MLflow tracking server authentication.
-        - MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD: Whether to enable proxy multipart download in MLflow.
-    """
-    tracking_uri = getenv("MLFLOW_TRACKING_URI")
-    username = getenv("MLFLOW_TRACKING_USERNAME")
-    password = getenv("MLFLOW_TRACKING_PASSWORD")
-    enable_proxy_multipart_download = getenv("MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD")
+    @staticmethod
+    def set_tracking_and_credentials(user: MlFlowUser) -> None:
+        """Set MLflow tracking URI and, if present, credentials as environment variables.
 
-    if not tracking_uri:
-        raise ValueError("MLFLOW_TRACKING_URI environment variable is not set.")
+        Sets MLFLOW_TRACKING_URI always. MLFLOW_TRACKING_USERNAME and MLFLOW_TRACKING_PASSWORD are only set when
+        the user has credentials; the mlflow client handles authentication from the environment.
 
-    # Username and password does not need to be set explicitly. We only need to check that they exist in the
-    # environment variables and mlflow client will handle the authentication automatically.
-    if not (username and password):
-        raise ValueError(
-            "MLFLOW_TRACKING_USERNAME and " + "MLFLOW_TRACKING_PASSWORD environment " + "variables are not set."
-        )
+        Args:
+            user: MlFlowUser - The user holding the tracking host and optional credentials.
 
-    # Similar to username and password, we check that the environment variable for proxy multipart download is set.
-    # Configuration is managed automatically by the mlflow client.
-    if enable_proxy_multipart_download is None:
-        raise ValueError("MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD environment variable is not set.")
+        """
+        environ["MLFLOW_TRACKING_URI"] = user.host
+        set_tracking_uri(user.host)
+        logger.info(f"MLflow tracking URI set to {user.host}.")
 
-    set_tracking_uri(tracking_uri)
-
-    logger.info("MLflow tracking and credentials set from environment variables.")
+        if user.username is not None and user.password is not None:
+            environ["MLFLOW_TRACKING_USERNAME"] = user.username
+            environ["MLFLOW_TRACKING_PASSWORD"] = user.password
+            logger.info(f"MLflow tracking credentials set for user {user.username}.")
+        else:
+            # Avoid stale credentials from a previously configured user.
+            environ.pop("MLFLOW_TRACKING_USERNAME", None)
+            environ.pop("MLFLOW_TRACKING_PASSWORD", None)
 
 
-def load_config(
-    env_path: str | Path = MLFLOW_ENV_FILE,
-    certificate_path: str | Path = MLFLOW_CERT_FILE,
-    set_tracking_and_credentials: bool = True,
-) -> None:
-    """Load MLflow configuration.
+    @staticmethod
+    def set_certificate(certificate_path: str | Path = MLFLOW_CERT_FILE) -> None:
+        """Set the server certificate path.
 
-    Args:
-        env_path: str | Path - Path to the .env file containing MLflow configuration.
-        certificate_path: str | Path - Path to the certificate file for MLflow tracking.
-        set_tracking_and_credentials: bool -  If True, set MLflow tracking URI and credentials from environment
-                                              variables after loading the .env file.
+        Args:
+            certificate_path: str | Path - Path to the certificate file for the MLflow tracking server.
 
-    Expected environment variables in .env file:
-            - MLFLOW_TRACKING_URI: The URI for the MLflow tracking server.
-            - MLFLOW_TRACKING_USERNAME: The username for MLflow tracking server authentication.
-            - MLFLOW_TRACKING_PASSWORD: The password for MLflow tracking server authentication.
-            - MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD: Whether to enable proxy multipart download in MLflow.
+        Raises:
+            The validation error from validate_path if the certificate file is invalid.
 
-    """
-    certificate_path = validate_path(certificate_path, is_file=True)
-    environ["MLFLOW_TRACKING_SERVER_CERT_PATH"] = str(certificate_path)
-    load_env_file(env_path)
-    if set_tracking_and_credentials:
-        set_tracking_and_credentials_from_env()
+        """
+        certificate_path = validate_path(certificate_path, is_file=True)
+        environ["MLFLOW_TRACKING_SERVER_CERT_PATH"] = str(certificate_path)
 
-    logger.info("MLFlow .env file loaded successfully.")
+        logger.info("MLflow certificate path set.")
+
+    @staticmethod
+    def set_multipart_download(enabled: bool = False) -> None:
+        """Enable or disable proxy multipart download.
+
+        Args:
+            enabled: bool - Whether to enable proxy multipart download in MLflow.
+
+        """
+        environ["MLFLOW_ENABLE_PROXY_MULTIPART_DOWNLOAD"] = "true" if enabled else "false"
+
+        logger.info(f"MLflow proxy multipart download {'enabled' if enabled else 'disabled'}.")

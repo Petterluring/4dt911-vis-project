@@ -57,6 +57,13 @@ listings = Table(
     Column("name", Text, nullable=True),
 )
 
+amenities = Table(
+    "listing_amenities",
+    metadata,
+    Column("listing_id", BigInteger, nullable=False),
+    Column("amenity", Text, nullable=True),
+)
+
 apartment_sales = Table(
     "apartment_sales",
     metadata,

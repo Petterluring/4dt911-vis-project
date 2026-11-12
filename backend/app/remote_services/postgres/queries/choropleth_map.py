@@ -109,7 +109,6 @@ async def select_listings(
 
 
 
-
 def build_tooltip_statistics(districts: Sequence[str]) -> Select[Any]:
     """Build a query with tooltip statistics per district."""
     housing = (

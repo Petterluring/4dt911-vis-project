@@ -1,0 +1,43 @@
+
+
+services:
+  airbnb-explorer-service:
+    image: ghcr.io/petterluring/4dt911-vis-project-backend:main
+    platform: linux/amd64
+    ports:
+      - "${BACKEND_PORT}:${BACKEND_PORT}"
+    volumes:
+      - ${HOME}/4dt911-resources:/root/4dt911-resources:ro
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - |
+          import urllib.request
+          for endpoint in ("health", "health-db"):
+              with urllib.request.urlopen(
+                  "http://localhost:${BACKEND_PORT}/" + endpoint, timeout=2
+              ) as response:
+                  pass
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "${BACKEND_PORT}"]
+    
+    
+  airbnb-explorer-app:
+    image: ghcr.io/petterluring/4dt911-vis-project-frontend:main
+    platform: linux/amd64
+    ports:
+      - "${FRONTEND_PORT}:${FRONTEND_PORT}"
+    depends_on:
+      airbnb-explorer-service:
+        condition: service_healthy
+    command: ["serve", "-s", "dist", "-l", "${FRONTEND_PORT}"]
+
+networks:
+  default:
+    external: true
+    name: mlflow-network

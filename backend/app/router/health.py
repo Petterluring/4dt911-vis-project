@@ -3,6 +3,8 @@
 from fastapi import APIRouter
 from sqlalchemy import text
 
+from app.remote_services.mlflow.client.connection import check_connection
+from app.remote_services.mlflow.dependencies import MlflowClientDep
 from app.remote_services.postgres import ConnectionDep
 
 router = APIRouter()
@@ -21,4 +23,14 @@ async def health_check_db(connection: ConnectionDep) -> dict[str, str]:
         "status": "healthy",
         "query": query,
         "query_result": str(result.scalar())
+    }
+
+@router.get("/health-mlflow")
+def health_check_mlflow(client: MlflowClientDep) -> dict[str, str | int]:
+    """Health check endpoint that verifies MLflow connectivity and authentication."""
+    experiments_returned = check_connection(client)
+    return {
+        "status": "healthy",
+        "tracking_uri": client.tracking_uri,
+        "experiments_returned": experiments_returned,
     }

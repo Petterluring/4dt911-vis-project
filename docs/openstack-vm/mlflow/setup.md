@@ -6,6 +6,8 @@ These instructions assume that you are connected to the VM instance remotely usi
 
 We use Docker to run the MLflow service on the VM. Deploy the service by following the instructions in the **Docker Compose** section of the [MLflow self-hosting documentation](https://mlflow.org/docs/latest/self-hosting/).
 
+The `docker-compose.txt` and `env-file.txt` files contain plain-text copies of the current Docker Compose and environment configurations used for the MLflow, PostgreSQL, and Rust services. Note that the configuration has been slightly modified to meet our project-specific requirements and therefore does not fully match the original Docker Compose file.
+
 ## Configure Network Access
 
-Make sure that the ports used by the services are open in the VM instance's security group. This includes the MLflow server, PostgreSQL, Rust, and any other services deployed on the VM.
+Make sure that the ports used by the services are open in the VM instance's security group. This includes the MLflow server, PostgreSQL, Rust, and any other services deployed on the VM. Ideally, service ports should only be accessible locally within the VM. All external connections should be routed through Nginx, which acts as a reverse proxy and provides a centralized entry point for remote access.
