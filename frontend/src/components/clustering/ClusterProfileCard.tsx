@@ -2,11 +2,11 @@ import type { CSSProperties } from 'react';
 import type { ClusterProfile } from '../../interfaces/clustering';
 import { formatClusterNumber } from '../../utils/clustering';
 
-interface Props { cluster: ClusterProfile; index: number; selected: boolean; dimmed: boolean; onSelect: (id: string) => void }
-export default function ClusterProfileCard({ cluster, index, selected, dimmed, onSelect }: Props) {
+interface Props { cluster: ClusterProfile; selected: boolean; dimmed: boolean; onSelect: (id: string) => void }
+export default function ClusterProfileCard({ cluster, selected, dimmed, onSelect }: Props) {
   return <button type="button" className={`cluster-profile panel${dimmed ? ' is-dimmed' : ''}`}
     style={{ '--cluster-color': cluster.color } as CSSProperties} aria-pressed={selected} onClick={() => onSelect(cluster.id)}>
-    <span className="cluster-profile__heading"><span className="eyebrow">Cluster {index + 1}</span><span>{formatClusterNumber(cluster.listingCount)} listings</span></span>
+    <span className="cluster-profile__heading"><span className="eyebrow">Cluster ID: {cluster.id}</span><span>{formatClusterNumber(cluster.listingCount)} listings</span></span>
     <strong className="cluster-profile__name"><span className="cluster-swatch" style={{ background: cluster.color }} />{cluster.label}</strong>
     {cluster.description && <span className="cluster-profile__description">{cluster.description}</span>}
     <span className="cluster-profile__facts">

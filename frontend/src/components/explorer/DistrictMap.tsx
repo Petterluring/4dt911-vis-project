@@ -43,6 +43,7 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   const canvas = useRef<HTMLCanvasElement>(null);
   const zoomBehavior = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const gesture = useRef({ start: [0, 0] as [number, number], moved: false, active: false });
+  const previousSearch = useRef<{ area: LocationSearchArea | null; width: number; height: number; geometry: DistrictGeometry } | null>(null);
   const [size, setSize] = useState({ width: 1200, height: 800 });
   const [transform, setTransform] = useState(zoomIdentity);
   const [selectionTool, setSelectionTool] = useState<SelectionTool | null>(null);
@@ -100,9 +101,13 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   }, [focusRequest, geometry, size]);
   useEffect(() => {
     const element = svg.current, behavior = zoomBehavior.current;
-    // Undefined leaves the existing SD1/SD2 focus behavior untouched. Null
-    // explicitly clears an SD3 location and restores the district overview.
+    // Switching tabs changes overlay visibility, not the persistent viewport.
+    // Refit only for a new/cleared search, changed boundaries, or a resize.
     if (!element || !behavior || searchArea === undefined) return;
+    const previous = previousSearch.current;
+    previousSearch.current = { area: searchArea, ...size, geometry };
+    if (!searchArea && !previous?.area) return;
+    if (previous?.area === searchArea && previous.width === size.width && previous.height === size.height && previous.geometry === geometry) return;
     select(element).call(behavior.transform, searchArea
       ? focusedAreaTransform(searchArea, size.width, size.height)
       : fittedTransform(geometry, size.width, size.height));

@@ -2,6 +2,10 @@ import type { ListingLocation } from './explorer';
 
 // This is the UI contract, independent of any future backend response format.
 export type ClusterId = string;
+export interface ClusteringRequest {
+  features: ('room_type' | 'accommodates' | 'bedrooms' | 'bathrooms' | 'beds')[];
+  n_clusters: number;
+}
 export interface ClusterPriceDistribution {
   count: number;
   lowerWhisker: number;

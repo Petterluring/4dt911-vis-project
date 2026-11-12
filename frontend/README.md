@@ -69,6 +69,25 @@ listing table and sidebar can scroll independently. Filters, selections, and the
 are retained when switching views. On smaller screens the panels stack.
 The existing demo pages remain at `/demos/hello-fast-api` and `/demos/hello-world`.
 
+### Listing clusters (SD3)
+
+Use the existing **Clustering** sidebar tab next to **Filters & Details** and
+**Positioning** to open SD3. It contains coordinated profiles, price boxplots,
+cluster map markers, address search, nearby statistics, and local/overall price
+comparisons. Map/Listings remain the two header views, and tab switching preserves
+SD3 state and the other explorer tools.
+The map stays in the same persistent container and has the same position and
+dimensions across sidebar tabs. Clustering controls and collapsible summaries
+fit the normal sidebar; price charts use the existing fixed comparison panel
+below the map. The shared desktop and mobile map layout is preserved.
+
+Live API mode is the default: **POST `/api/clustering/perform`** supplies assignments
+and price statistics, joined with metadata from **POST `/api/choropleth-map/listings`**.
+Failures show a retryable error without synthetic fallback. For explicit development
+mock data, set `VITE_CLUSTERING_DATA_MODE=mock` in `frontend/.env.local` and restart
+Vite. See [SD3.md](SD3.md) for the backend contract, cluster-count configuration,
+mock mode, geocoding settings, and integration validation.
+
 ### Map layers and interactions
 
 - A sequential petrol scale encodes the chosen average/median housing/Airbnb price.

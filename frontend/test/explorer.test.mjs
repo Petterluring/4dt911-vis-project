@@ -279,6 +279,10 @@ test('dashboard starts in map view with shared filters and both scatterplots', a
   const html = renderToStaticMarkup(createElement(Explorer));
   assert.match(html, /aria-pressed="true">Map/);
   assert.match(html, /aria-pressed="false">Listings/);
+  assert.equal((html.match(/aria-label="Controls and information"/g) ?? []).length, 1);
+  assert.equal((html.match(/aria-pressed="false">Clustering/g) ?? []).length, 1);
+  assert.match(html, /aria-pressed="false">Positioning/);
+  assert.doesNotMatch(html, />Listing Clusters<|class="listing-clusters"/);
   assert.match(html, /Listing filters/);
   assert.doesNotMatch(html, /id="ranking-title"/);
   assert.match(html, /id="district-comparison"/);
