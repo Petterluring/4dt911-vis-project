@@ -3,6 +3,7 @@ import { DISTRICTS } from '../interfaces/explorer';
 import type { District, ListingLocation, PriceMetric, PriceMode } from '../interfaces/explorer';
 import type { ListingFocusRequest } from '../utils/map';
 import { useExplorerData } from '../hooks/useExplorerData';
+import { useListingClusters } from '../hooks/useListingClusters';
 import { METRICS, formatNumber, listingMetricScale, metricScale } from '../utils/explorer';
 import DistrictMap from '../components/explorer/DistrictMap';
 import DistrictDetails from '../components/explorer/DistrictDetails';
@@ -14,15 +15,18 @@ import ListingRanking from '../components/explorer/ListingRanking';
 import ComparisonPanel from '../components/explorer/ComparisonPanel';
 import './Explorer.css';
 import ListingClusters from '../components/clustering/ListingClusters';
+import ClusterPricePanel from '../components/clustering/ClusterPricePanel';
+import ClusterMapLegend from '../components/clustering/ClusterMapLegend';
 import { EMPTY_FILTERS, filterListings } from '../utils/ranking';
 import type { ListingFilters } from '../utils/ranking';
 const EMPTY_LISTINGS: ListingLocation[] = [];
+const ignoreDistrictHover = () => {};
 export default function Explorer() {
   const [view, setView] = useState<'map' | 'listings'>('map');
   const [sidebar, setSidebar] = useState<'listings' | 'positioning' | 'clustering'>('listings');
   const [positioningOpened, setPositioningOpened] = useState(false);
+  const [clusteringOpened, setClusteringOpened] = useState(false);
   const [comparable, setComparable] = useState<ListingLocation | null>(null);
-  const [view, setView] = useState<'map' | 'listings' | 'clusters'>('map');
   const [metric, setMetric] = useState<PriceMetric>('median_airbnb_price');
   const [mode, setMode] = useState<PriceMode>('median');
   const [showListings, setShowListings] = useState(true);
@@ -37,6 +41,8 @@ export default function Explorer() {
   const [selectionRevision, setSelectionRevision] = useState(0);
   const [revision, setRevision] = useState(0);
   const data = useExplorerData(revision);
+  const clustering = useListingClusters(data.listings, clusteringOpened);
+  const clusteringActive = sidebar === 'clustering';
   const [filters, setFilters] = useState<ListingFilters>({ ...EMPTY_FILTERS });
   const allListings = data.listings.data ?? EMPTY_LISTINGS;
   const listings = useMemo(() => filterListings(allListings, filters), [allListings, filters]);
@@ -93,26 +99,30 @@ export default function Explorer() {
   function clearSelection() {
     setSelectedDistrict(null); setHoveredDistrict(null); clearGroup();
   }
-  return <main className={`explorer${view === 'clusters' ? ' explorer--clusters' : ''}`} aria-label="SABA - Stockholm Airbnb Analytics">
+  return <main className="explorer" aria-label="SABA - Stockholm Airbnb Analytics">
     <header className="explorer-header">
       <div><p className="eyebrow">SABA · Explore the city</p><h1>Explore Stockholm</h1></div>
       <div className="segmented explorer-view-switch" role="group" aria-label="Explorer view">
-        <button type="button" aria-pressed={view === 'map'} onClick={() => setView('map')}>Map</button>
-        <button type="button" aria-pressed={view === 'listings'} onClick={() => { setHoveredDistrict(null); setView('listings'); }}>Listings</button>
-        <button type="button" aria-pressed={view === 'clusters'} onClick={() => { setHoveredDistrict(null); setView('clusters'); }}>Listing Clusters</button>
+        <button type="button" aria-pressed={view === 'map'} onClick={() => { setView('map'); if (clusteringActive) setSidebar('listings'); }}>Map</button>
+        <button type="button" aria-pressed={view === 'listings' && sidebar !== 'clustering'} onClick={() => { setHoveredDistrict(null); setView('listings'); if (sidebar === 'clustering') setSidebar('listings'); }}>Listings</button>
       </div>
     </header>
-    <div className="explorer-content" hidden={view === 'clusters'}>
+    <div className="explorer-content">
       <section className="explorer-map-view" hidden={view !== 'map'} aria-label="Map view">
         <div className="explorer__map panel">
           {data.geometry.status === 'success' ? <DistrictMap geometry={data.geometry.data} prices={data.prices.data ?? []}
-            listings={mapListings} listingScale={listingScale} onDetailZoom={setDetailZoom} groupIds={groupIds} onSelectGroup={data.listings.status === 'success' ? selectGroup : undefined} metric={metric} selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict}
-            showListings={showListings} showBasemap={showBasemap} showDistricts={showDistricts} focusRequest={focusRequest}
-            onHover={setHoveredDistrict} onSelect={district => { selectDistrict(district); setSidebar('listings'); }} selectedListingId={selectedListingId} onSelectListing={selectListing} />
+            listings={clusteringActive ? clustering.mappedListings : mapListings} listingScale={listingScale} onDetailZoom={setDetailZoom}
+            groupIds={clusteringActive ? undefined : groupIds} onSelectGroup={!clusteringActive && data.listings.status === 'success' ? selectGroup : undefined}
+            metric={metric} selectedDistrict={clusteringActive ? null : selectedDistrict} hoveredDistrict={clusteringActive ? null : hoveredDistrict}
+            showListings={clusteringActive || showListings} showBasemap={showBasemap} showDistricts={!clusteringActive && showDistricts} focusRequest={focusRequest}
+            listingColor={clusteringActive ? clustering.listingColor : undefined} highlightedListingIds={clusteringActive ? clustering.highlightedIds : undefined}
+            searchArea={clusteringActive ? clustering.searchArea : undefined}
+            onHover={clusteringActive ? ignoreDistrictHover : setHoveredDistrict} onSelect={district => { selectDistrict(district); setSidebar('listings'); }}
+            selectedListingId={clusteringActive ? clustering.mapSelectedListingId : selectedListingId} onSelectListing={clusteringActive ? clustering.selectListing : selectListing} />
             : <div className="map-message" role={data.geometry.status === 'error' ? 'alert' : 'status'}>
-              {data.geometry.status === 'error' ? data.geometry.error : 'Loading Stockholm district boundaries…'}
+              {data.geometry.status === 'error' ? <>{data.geometry.error}{clusteringActive && <button type="button" className="text-button" onClick={() => setRevision(value => value + 1)}>Retry map data</button>}</> : 'Loading Stockholm district boundaries…'}
             </div>}
-          <details className="map-controls panel">
+          <details className="map-controls panel" hidden={clusteringActive}>
             <summary>Map settings</summary>
             <div className="map-controls__body">
               <label className="control-label" htmlFor="map-metric">Colour map by</label>
@@ -139,7 +149,7 @@ export default function Explorer() {
               </div>
             </div>
           </details>
-          {(districtLegend || showListings) && <div className="map-legend panel" aria-label="Map colour legend">
+          {!clusteringActive && (districtLegend || showListings) && <div className="map-legend panel" aria-label="Map colour legend">
             {districtLegend && <>
             <div><strong>{METRICS[metric].label}</strong><span>{METRICS[metric].unit}</span></div>
             {data.prices.status === 'loading' ? <p role="status">Loading price statistics…</p>
@@ -156,9 +166,10 @@ export default function Explorer() {
               <p><span className="missing-key listing-missing-key" /> No data <span className="selected-key listing-selected-key" /> Selected listing</p>
             </section>}
           </div>}
+          {clusteringActive && <ClusterMapLegend state={clustering} />}
         </div>
-        {view === 'map' && <ComparisonPanel resource={data.scatterplots} mode={mode} onMode={setMode}
-          selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict} onHover={setHoveredDistrict} onSelect={selectDistrict} />}
+        {view === 'map' && (clusteringActive ? <ClusterPricePanel state={clustering} /> : <ComparisonPanel resource={data.scatterplots} mode={mode} onMode={setMode}
+          selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict} onHover={setHoveredDistrict} onSelect={selectDistrict} />)}
       </section>
       {view === 'listings' && <ListingRanking resource={data.listings} listings={rankedListings} allListings={groupSource}
         groupActive={groupIds !== null} selectedListingId={selectedListingId} selectionRevision={selectionRevision} onSelect={selectRankedListing} />}
@@ -167,23 +178,22 @@ export default function Explorer() {
       <div className="segmented explorer-sidebar-tabs" role="group" aria-label="Sidebar view">
         <button type="button" aria-pressed={sidebar === 'listings'} onClick={() => setSidebar('listings')}>Filters &amp; Details</button>
         <button type="button" aria-pressed={sidebar === 'positioning'} onClick={() => { setPositioningOpened(true); setSidebar('positioning'); }}>Positioning</button>
-        <button type="button" aria-pressed={sidebar === 'clustering'} onClick={() => setSidebar('clustering')}>Clustering</button>
+        <button type="button" aria-pressed={sidebar === 'clustering'} onClick={() => { setClusteringOpened(true); setHoveredDistrict(null); setView('map'); setSidebar('clustering'); }}>Clustering</button>
       </div>
       {positioningOpened && <div hidden={sidebar !== 'positioning'}>
         <PropertyPositioning roomTypes={roomTypes} onSelect={selectComparable} />
       </div>}
+      {clusteringOpened && <div className="explorer-clustering-tab" hidden={sidebar !== 'clustering'}>
+        <ListingClusters state={clustering} onRetry={() => setRevision(value => value + 1)} />
+      </div>}
       <div className="map-information" aria-label="Filters and selection details" hidden={sidebar !== 'listings'}>
         <ListingFiltersPanel listings={groupSource} filters={filters} roomTypes={roomTypes} onFilters={changeFilters} />
-    {view === 'clusters' && <ListingClusters listings={data.listings} geometry={data.geometry} onRetry={() => setRevision(value => value + 1)} />}
-    <aside className="explorer-sidebar" hidden={view === 'clusters'} aria-label="Controls and information">
-      <ListingFiltersPanel listings={groupSource} filters={filters} roomTypes={roomTypes} onFilters={changeFilters} />
-      <div className="map-information" aria-label="Selection details">
         {groupIds && <SelectionSummary listings={rankedListings} onClear={clearGroup} />}
         {selectedListing ? <div className="listing-card panel"><ListingDetails key={selectedListing.id} listing={selectedListing} onClose={() => { setSelectedListingId(null); setFocusRequest(null); }} /></div>
           : groupIds ? null : activeDistrict ? <div className="district-card panel"><DistrictDetails district={activeDistrict} tooltips={data.tooltips} /></div>
             : <div className="map-hint panel"><p className="eyebrow">Discover Stockholm</p><h2>Find your perspective</h2><p>{view === 'map' ? 'Hover a district or select a map marker to see its details.' : 'Select a row to see the listing details.'}</p></div>}
       </div>
-      {errors && <div className="data-notice panel" role="status"><strong>Some data could not be loaded.</strong>
+      {errors && sidebar !== 'clustering' && <div className="data-notice panel" role="status"><strong>Some data could not be loaded.</strong>
           <span>{[data.prices, data.tooltips, data.listings, data.scatterplots].find(resource => resource.status === 'error')?.error ?? data.geometry.error}</span>
           <button type="button" className="text-button" onClick={() => setRevision(value => value + 1)}>Retry data</button>
       </div>}

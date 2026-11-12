@@ -151,6 +151,13 @@ test('nearby summaries and local-overall boxplots show scopes, counts, shares, m
   assert.match(html, /2 km/);
   assert.match(html, /1 without a valid cluster assignment/);
   assert.match(html, /aria-pressed="true"/);
+  const compact = renderToStaticMarkup(createElement(NearbyClusters, { analysis, radiusMeters: 500, selectedClusterId: 'compact', onSelect() {}, compact: true }));
+  assert.match(compact, /<details /);
+  assert.match(compact, /40%/);
+  assert.match(compact, /600 SEK/);
+  assert.match(compact, /2 km/);
+  assert.match(compact, /Nearest in dataset/);
+  assert.doesNotMatch(compact, /<table/);
   const cluster = demo.clusters[0];
   const comparison = renderToStaticMarkup(createElement(ClusterPriceBoxplot, {
     clusters: [{ ...cluster, id: 'local', label: 'Local · 500 m', prices: null }, { ...cluster, id: 'overall', label: 'Overall dataset', outline: true }],

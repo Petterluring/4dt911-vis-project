@@ -4,11 +4,14 @@ import { createServer } from 'vite';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-const server = await createServer({ server: { middlewareMode: true, watch: null, hmr: false, ws: false }, appType: 'custom' });
+const server = await createServer({
+  define: { 'import.meta.env.VITE_CLUSTERING_DATA_MODE': JSON.stringify('api'), 'import.meta.env.VITE_CLUSTERING_N_CLUSTERS': JSON.stringify('3') },
+  server: { middlewareMode: true, watch: null, hmr: false, ws: false }, appType: 'custom',
+});
 after(async () => { await server.close(); });
 const { createMockClustering, mockClusterId } = await server.ssrLoadModule('/src/data/clusteringMock.ts');
 const { priceDistribution, medianValue, validDistribution } = await server.ssrLoadModule('/src/utils/clustering.ts');
-const { fetchClustering } = await server.ssrLoadModule('/src/api/clustering.ts');
+const { fetchClustering, parseClustering, CLUSTERING_DATA_MODE, CLUSTERING_REQUEST } = await server.ssrLoadModule('/src/api/clustering.ts');
 
 test('fallback demo is deterministic with matching assignments, counts, profiles and observed price summaries', () => {
   const data = createMockClustering(null);
@@ -78,6 +81,11 @@ test('Tukey summaries retain zero, exclude invalid prices and separate outliers 
 });
 
 test('mock service works without network requests and respects cancellation', async () => {
+  const mockServer = await createServer({ configFile: false,
+    define: { 'import.meta.env.VITE_CLUSTERING_DATA_MODE': JSON.stringify('mock') },
+    server: { middlewareMode: true, watch: null, hmr: false, ws: false }, appType: 'custom',
+  });
+  const { fetchClustering } = await mockServer.ssrLoadModule('/src/api/clustering.ts');
   const originalFetch = globalThis.fetch;
   globalThis.fetch = () => { throw new Error('Mock service must not request an unimplemented endpoint'); };
   try {
@@ -87,20 +95,86 @@ test('mock service works without network requests and respects cancellation', as
     const controller = new AbortController();
     controller.abort();
     await assert.rejects(fetchClustering(controller.signal, null), { name: 'AbortError' });
+  } finally { globalThis.fetch = originalFetch; await mockServer.close(); }
+});
+
+test('live mode is the default and uses the implemented request, paginated metadata, exact listing IDs and backend assignments', async () => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const largeId = '1364738370991276918';
+  globalThis.fetch = async (url, options) => {
+    const body = JSON.parse(options.body); calls.push({ url, body });
+    assert.equal(options.method, 'POST');
+    if (url === '/api/clustering/perform') {
+      assert.deepEqual(body, { features: ['room_type', 'accommodates', 'bedrooms', 'beds'], n_clusters: 3 });
+      // Deliberately numeric and beyond Number.MAX_SAFE_INTEGER on the wire.
+      return new Response(`{"cluster_assignments":[{"id":${largeId},"price":0,"cluster":0},{"id":1001,"price":400,"cluster":4}],"cluster_statistics":{}}`);
+    }
+    assert.equal(url, '/api/choropleth-map/listings');
+    assert.equal(body.limit, 1000);
+    assert.ok(body.columns.includes('latitude') && body.columns.includes('beds'));
+    if (body.offset === 0) return new Response(`[${Array.from({ length: 1000 }, (_, i) => i === 0
+      ? `{"id":${largeId},"latitude":59.315,"longitude":18.071,"room_type":"Private room","accommodates":2,"bedrooms":0,"beds":1}`
+      : JSON.stringify({ id: i + 1, latitude: 59.3, longitude: 18, price: 100 })).join(',')}]`);
+    return new Response(JSON.stringify([{ id: 1001, latitude: null, longitude: null, room_type: 'Entire home/apt', accommodates: 6, bedrooms: 3, beds: 4 }]));
+  };
+  try {
+    assert.equal(CLUSTERING_DATA_MODE, 'api');
+    const data = await fetchClustering(new AbortController().signal, null);
+    assert.equal(data.metadata.mode, 'api');
+    assert.equal(data.metadata.source, 'api');
+    assert.equal(data.listings.length, 1001);
+    assert.deepEqual(data.clusters.map(cluster => cluster.id), ['0', '4']);
+    const first = data.listings.find(listing => listing.id === largeId);
+    assert.equal(first.clusterId, '0'); assert.equal(first.price, 0); assert.equal(first.bedrooms, 0);
+    assert.equal(data.clusters[0].medianBedrooms, 0);
+    const second = data.listings.find(listing => listing.id === '1001');
+    assert.ok(Number.isNaN(second.latitude)); assert.equal(second.clusterId, '4');
+    assert.equal(data.clusters[1].medianAccommodates, 6);
+    assert.deepEqual(calls.filter(call => call.url.endsWith('/listings')).map(call => call.body.offset), [0, 1000]);
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test('API mode reports its missing integration explicitly without guessing endpoints or substituting mock data', async () => {
-  const apiServer = await createServer({
-    configFile: false,
-    define: { 'import.meta.env.VITE_CLUSTERING_DATA_MODE': JSON.stringify('api') },
-    server: { middlewareMode: true, watch: null, hmr: false, ws: false }, appType: 'custom',
-  });
+test('backend price fences become observed whiskers, with outliers and missing-price counts kept consistent', () => {
+  const prices = [100, 200, 300, 400, 500, 600, 10000, null];
+  const data = parseClustering({ cluster_assignments: prices.map((price, index) => ({ id: String(index), cluster: 0, price })),
+    cluster_statistics: { 0: { q25: 250, median: 400, q75: 550, lower_whisker: 0, upper_whisker: 1000, count: 8 } },
+  }, []);
+  const cluster = data.clusters[0];
+  assert.equal(cluster.id, '0'); assert.equal(cluster.listingCount, 8);
+  assert.deepEqual(cluster.prices, { count: 7, q1: 250, median: 400, q3: 550, lowerWhisker: 100, upperWhisker: 600, outliers: [10000] });
+  assert.equal(cluster.medianAccommodates, null);
+  assert.equal(cluster.roomTypes[0].label, 'Unknown');
+  assert.match(data.metadata.description, /no matching listing metadata/);
+});
+
+test('partial live data retains unassigned listings, null prices and arbitrary cluster IDs without inventing accommodation types', () => {
+  const metadata = createMockClustering(null).listings.slice(0, 4).map((listing, i) => ({ ...listing, id: String(i) }));
+  const data = parseClustering({ cluster_assignments: [
+    { id: 0, cluster: 0, price: null }, { id: 1, cluster: 'north', price: '1500.5' }, { id: 2, cluster: null, price: 100 },
+    { id: 9, cluster: -1, price: 100 },
+  ], cluster_statistics: {} }, metadata);
+  assert.deepEqual(data.clusters.map(cluster => cluster.id), ['0', 'north']);
+  assert.equal(data.clusters[0].label, 'Cluster 0'); assert.equal(data.clusters[0].prices, null);
+  assert.equal(data.clusters[1].prices.median, 1500.5);
+  assert.equal(data.listings.filter(listing => listing.clusterId === null).length, 3);
+  const repeated = parseClustering({ cluster_assignments: [{ id: 1, cluster: 'north', price: 500 }], cluster_statistics: {} }, metadata);
+  assert.equal(data.clusters[1].color, repeated.clusters[0].color);
+  assert.deepEqual(parseClustering({ cluster_assignments: [], cluster_statistics: {} }, []).clusters, []);
+  assert.throws(() => parseClustering({ cluster_statistics: {} }, metadata), /invalid list/);
+});
+
+test('live API and metadata failures surface errors without silently returning mock results; aborts stop work', async () => {
+  const originalFetch = globalThis.fetch;
   try {
-    const api = await apiServer.ssrLoadModule('/src/api/clustering.ts');
-    assert.equal(api.CLUSTERING_DATA_MODE, 'api');
-    await assert.rejects(api.fetchClustering(new AbortController().signal, null), /Live clustering is not configured yet/);
-  } finally { await apiServer.close(); }
+    globalThis.fetch = async url => url.endsWith('/perform') ? new Response('', { status: 503 }) : new Response('[]');
+    await assert.rejects(fetchClustering(new AbortController().signal, []), /503/);
+    globalThis.fetch = async url => url.endsWith('/perform') ? new Response('{"cluster_assignments":[],"cluster_statistics":{}}') : new Response('', { status: 502 });
+    await assert.rejects(fetchClustering(new AbortController().signal, []), /502/);
+    const controller = new AbortController(); controller.abort();
+    await assert.rejects(fetchClustering(controller.signal, null), { name: 'AbortError' });
+    assert.ok(!CLUSTERING_REQUEST.features.includes('price'));
+  } finally { globalThis.fetch = originalFetch; }
 });
 
 test('boxplot and card contracts support arbitrary cluster IDs and counts, missing prices and selected state', async () => {
@@ -117,22 +191,44 @@ test('boxplot and card contracts support arbitrary cluster IDs and counts, missi
   assert.doesNotMatch(html, /NaN/);
   const card = renderToStaticMarkup(createElement(ClusterProfileCard, { cluster: { ...base, medianBedrooms: .5 }, index: 4, selected: true, dimmed: false, onSelect() {} }));
   assert.match(card, /aria-pressed="true"/);
-  assert.match(card, /Cluster 5/);
+  assert.match(card, /Cluster ID: compact/);
   assert.match(card, /0.5/);
   assert.match(card, /Room-type composition/);
 });
 
-test('cluster map excludes invalid coordinates and reports unassigned listings while preserving map navigation', async () => {
-  const { default: ClusterMap } = await server.ssrLoadModule('/src/components/clustering/ClusterMap.tsx');
+test('SD3 sidebar and map legend share state without owning a separate map or price chart', async () => {
+  const { default: Legend } = await server.ssrLoadModule('/src/components/clustering/ClusterMapLegend.tsx');
+  const { default: Sidebar } = await server.ssrLoadModule('/src/components/clustering/ListingClusters.tsx');
   const data = createMockClustering(null);
-  const html = renderToStaticMarkup(createElement(ClusterMap, {
-    geometry: { status: 'loading' }, clusters: data.clusters,
-    listings: [{ ...data.listings[0], clusterId: 'missing-cluster' }, { ...data.listings[1], latitude: NaN }],
-    selectedClusterId: null, selectedListingId: null, onSelectCluster() {}, onSelectListing() {}, onClear() {}, onRetry() {},
-  }));
-  assert.match(html, /1 mapped listings/);
+  data.listings.push({ ...data.listings[0], id: 'unassigned', clusterId: null, latitude: NaN });
+  const state = { resource: { status: 'success', data }, data, mappedListings: data.listings.slice(0, 90), unassigned: 1,
+    selectedClusterId: null, selectedCluster: null, selectedListing: null, searchArea: null, nearby: null, radiusMeters: 1000, location: null,
+    selectCluster() {}, clearSelection() {}, selectLocation() {}, setRadiusMeters() {}, retry() {}, closeListing() {} };
+  const html = renderToStaticMarkup(createElement(Legend, { state }));
+  assert.match(html, /90 mapped listings/);
   assert.match(html, /1 unassigned/);
-  assert.match(html, /1 listings have no valid map coordinates/);
   assert.match(html, /All clusters/);
-  assert.match(html, /Loading Stockholm district boundaries/);
+  const sidebar = renderToStaticMarkup(createElement(Sidebar, { state, onRetry() {} }));
+  assert.match(sidebar, /1 listings have no valid map coordinates/);
+  assert.match(sidebar, /<details class="cluster-sidebar-section panel" open/);
+  assert.match(sidebar, /role="combobox"/);
+  assert.doesNotMatch(sidebar + html, /class="district-map"|<canvas|cluster-map-canvas|class="cluster-price/);
+});
+
+test('cluster prices reuse the fixed comparison panel and retain selected local-overall scopes', async () => {
+  const { default: Prices } = await server.ssrLoadModule('/src/components/clustering/ClusterPricePanel.tsx');
+  const { analyzeNearbyClusters } = await server.ssrLoadModule('/src/utils/location.ts');
+  const data = createMockClustering(null);
+  const selectedCluster = data.clusters[0];
+  const nearby = analyzeNearbyClusters(data.listings, data.clusters, { location: data.listings[0], radiusMeters: 500 });
+  const state = { resource: { status: 'success', data }, data, selectedCluster, selectedClusterId: selectedCluster.id,
+    nearby, localCluster: nearby.clusters.find(row => row.cluster.id === selectedCluster.id), radiusMeters: 500, selectCluster() {} };
+  const html = renderToStaticMarkup(createElement(Prices, { state }));
+  assert.match(html, /class="comparison-panel panel cluster-comparison-panel"/);
+  assert.equal((html.match(/class="cluster-price cluster-price--compact"/g) ?? []).length, 2);
+  assert.equal((html.match(/class="cluster-boxplot cluster-boxplot--static"/g) ?? []).length, 2);
+  assert.match(html, /Local · 500 m/);
+  assert.match(html, /Overall dataset/);
+  assert.match(html, /aria-pressed="true"/);
+  assert.doesNotMatch(html, /district-map|height="360"/);
 });
