@@ -3,6 +3,7 @@ import type { ListingLocation } from '../interfaces/explorer';
 import type { ClusterId, ClusterListing, ClusterPriceDistribution, ClusterProfile, ClusteringData, ClusteringRequest } from '../interfaces/clustering';
 import { createMockClustering } from '../data/clusteringMock';
 import { knownNonnegative, medianValue, priceDistribution, validDistribution } from '../utils/clustering';
+import { sameClusteringConfiguration, validateClusteringConfiguration } from '../utils/clusteringConfiguration';
 
 export const CLUSTERING_DATA_MODE = import.meta.env.VITE_CLUSTERING_DATA_MODE ?? 'api';
 export const CLUSTERING_REQUEST: ClusteringRequest = {
@@ -82,7 +83,7 @@ function distribution(statistics: unknown, prices: (number | null)[]): ClusterPr
   };
   return validDistribution(normalized) && q1 === calculated.q1 && median === calculated.median && q3 === calculated.q3 ? normalized : calculated;
 }
-export function parseClustering(value: unknown, metadata: ListingLocation[]): ClusteringData {
+export function parseClustering(value: unknown, metadata: ListingLocation[], configuration: ClusteringRequest = CLUSTERING_REQUEST): ClusteringData {
   const response = object(value);
   const assignments = rows(response.cluster_assignments);
   const statistics = object(response.cluster_statistics);
@@ -121,23 +122,26 @@ export function parseClustering(value: unknown, metadata: ListingLocation[]): Cl
   });
   return { clusters, listings: allListings, metadata: {
     mode: 'api', source: 'api', algorithm: 'KMeans',
+    configuration: { features: [...configuration.features], n_clusters: configuration.n_clusters },
+    inputListingCount: new Set(assignments.map(assignment => identifier(assignment.id))).size,
     description: `Backend clustering of accommodation characteristics. ${assignments.length} listing assignments.${missingMetadata ? ` ${missingMetadata} assignments have no matching listing metadata; their coordinates and characteristics are unavailable.` : ''}`,
-    details: { request: CLUSTERING_REQUEST, backendPriceStatistics: statistics, missingMetadata },
+    details: { request: { features: [...configuration.features], n_clusters: configuration.n_clusters }, backendPriceStatistics: statistics, missingMetadata },
   } };
 }
-async function fetchRealClustering(signal: AbortSignal): Promise<ClusteringData> {
-  if (!Number.isSafeInteger(CLUSTERING_REQUEST.n_clusters) || CLUSTERING_REQUEST.n_clusters < 2) {
-    throw new Error('VITE_CLUSTERING_N_CLUSTERS must be an integer of at least 2.');
-  }
+async function fetchRealClustering(signal: AbortSignal, configuration: ClusteringRequest): Promise<ClusteringData> {
   const [response, metadata] = await Promise.all([
-    post('/clustering/perform', CLUSTERING_REQUEST, signal), fetchClusteringListings(signal),
+    post('/clustering/perform', configuration, signal), fetchClusteringListings(signal),
   ]);
   signal.throwIfAborted();
-  return parseClustering(response, metadata);
+  return parseClustering(response, metadata, configuration);
 }
-export async function fetchClustering(signal: AbortSignal, existingListings: ListingLocation[] | null): Promise<ClusteringData> {
+export async function fetchClustering(signal: AbortSignal, existingListings: ListingLocation[] | null, configuration: ClusteringRequest = CLUSTERING_REQUEST): Promise<ClusteringData> {
   signal.throwIfAborted();
-  if (CLUSTERING_DATA_MODE === 'api') return fetchRealClustering(signal);
+  const validation = validateClusteringConfiguration(configuration.features, configuration.n_clusters);
+  if (!validation.request) throw new Error(Object.values(validation.errors).join(' '));
+  const snapshot = validation.request;
+  if (CLUSTERING_DATA_MODE === 'api') return fetchRealClustering(signal, snapshot);
   if (CLUSTERING_DATA_MODE !== 'mock') throw new Error('Unknown clustering data mode. Use mock or api.');
+  if (!sameClusteringConfiguration(snapshot, CLUSTERING_REQUEST)) throw new Error('Dynamic clustering requires API mode. Demonstration groups are fixed.');
   return createMockClustering(existingListings);
 }

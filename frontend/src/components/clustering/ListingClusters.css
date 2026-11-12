@@ -10,6 +10,20 @@
 .cluster-sidebar-section { margin-bottom: 12px; }
 .cluster-sidebar-section > summary { padding: 10px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
 .cluster-sidebar-section > summary:focus-visible, .cluster-map-legend > summary:focus-visible { outline: 2px solid var(--selected); outline-offset: -2px; }
+.cluster-configuration form { padding: 0 12px 12px; }
+.cluster-configuration fieldset { min-width: 0; margin: 0 0 10px; padding: 0; border: 0; }
+.cluster-configuration legend { margin-bottom: 8px; font-size: 11px; color: var(--text-secondary); }
+.cluster-configuration__features { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.cluster-configuration__features label { display: flex; align-items: center; gap: 6px; font-size: 11px; }
+.cluster-configuration__features input { margin: 0; accent-color: var(--primary); }
+.cluster-configuration__k { display: grid; gap: 6px; font-size: 11px; color: var(--text-secondary); }
+.cluster-configuration__k input { width: 100%; min-height: 32px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; color: var(--text); background: var(--surface); }
+.cluster-configuration__run { width: 100%; min-height: 32px; padding: 6px 8px; border: 0; border-radius: var(--radius); color: var(--surface); background: var(--primary); }
+.cluster-configuration .cluster-configuration__help { margin: 6px 0 10px; color: var(--text-secondary); font-size: 11px; line-height: 1.5; }
+.cluster-configuration .cluster-configuration__status, .cluster-configuration .cluster-configuration__pending { margin: 10px 0 0; font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.cluster-configuration > summary .cluster-configuration__status, .cluster-configuration > summary .cluster-configuration__pending { display: block; font-weight: 400; }
+.cluster-configuration__pending { color: var(--primary); }
+.cluster-configuration .cluster-configuration__error { margin: 6px 0 10px; color: #AD632F; font-size: 11px; line-height: 1.5; }
 .listing-clusters .cluster-profile { padding: 12px; gap: 8px; }
 .listing-clusters .cluster-profile__name { font-size: 14px; }
 .listing-clusters .cluster-profile__facts strong { font-size: 16px; }

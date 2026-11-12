@@ -2,8 +2,10 @@ import type { ListingLocation } from './explorer';
 
 // This is the UI contract, independent of any future backend response format.
 export type ClusterId = string;
+export const CLUSTERING_FEATURES = ['room_type', 'accommodates', 'bedrooms', 'bathrooms', 'beds'] as const;
+export type ClusteringFeature = typeof CLUSTERING_FEATURES[number];
 export interface ClusteringRequest {
-  features: ('room_type' | 'accommodates' | 'bedrooms' | 'bathrooms' | 'beds')[];
+  features: ClusteringFeature[];
   n_clusters: number;
 }
 export interface ClusterPriceDistribution {
@@ -37,6 +39,9 @@ export interface ClusteringData {
     description: string;
     algorithm?: string;
     generatedAt?: string;
+    // Frontend provenance, copied from the request that produced these results.
+    configuration?: ClusteringRequest;
+    inputListingCount?: number;
     details?: Record<string, unknown>;
   };
 }

@@ -3,6 +3,7 @@ import { formatClusterNumber } from '../../utils/clustering';
 import { distanceMeters, formatDistance } from '../../utils/location';
 import ClusterProfileCard from './ClusterProfileCard';
 import LocationSearch from './LocationSearch';
+import ClusteringConfiguration from './ClusteringConfiguration';
 import NearbyClusters from './NearbyClusters';
 import ListingDetails from '../explorer/ListingDetails';
 import './ListingClusters.css';
@@ -16,6 +17,8 @@ export default function ListingClusters({ state, onRetry }: Props) {
       <p>Explore accommodation, asking prices and nearby competition.</p></div>
       <button type="button" className="text-button" disabled={selectedClusterId === null && selectedListing === null} onClick={clearSelection}>Show all clusters</button>
     </header>
+    <ClusteringConfiguration state={state} />
+    <LocationSearch location={location} radiusMeters={radiusMeters} onRadius={setRadiusMeters} onLocation={selectLocation} />
     {resource.status === 'loading' ? <div className="cluster-state panel" role="status">Loading listing clusters…</div>
       : resource.status === 'error' ? <div className="cluster-state panel" role="alert"><h3>Clustering data is unavailable</h3><p>{resource.error}</p><button type="button" className="text-button" onClick={retry}>Retry clustering data</button></div>
       : <>
@@ -24,7 +27,6 @@ export default function ListingClusters({ state, onRetry }: Props) {
           {resource.data.metadata.mode === 'mock' && <p>Groups use room type, guest capacity, bedrooms, and beds. Nightly price is analyzed only after assignment.</p>}
           {resource.data.metadata.source === 'synthetic-fallback' && <button type="button" className="text-button" onClick={onRetry}>Retry existing listing data</button>}
         </div>
-        <LocationSearch location={location} radiusMeters={radiusMeters} onRadius={setRadiusMeters} onLocation={selectLocation} />
         {!resource.data.listings.length ? <div className="cluster-state panel" role="status"><h3>No listings available</h3><p>There are no listings to summarize. Try loading the data again.</p><button type="button" className="text-button" onClick={retry}>Retry data</button></div>
           : <>
             {resource.data.clusters.length ? <details className="cluster-sidebar-section panel" open><summary>Overall cluster profiles</summary>

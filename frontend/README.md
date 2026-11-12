@@ -85,8 +85,74 @@ Live API mode is the default: **POST `/api/clustering/perform`** supplies assign
 and price statistics, joined with metadata from **POST `/api/choropleth-map/listings`**.
 Failures show a retryable error without synthetic fallback. For explicit development
 mock data, set `VITE_CLUSTERING_DATA_MODE=mock` in `frontend/.env.local` and restart
-Vite. See [SD3.md](SD3.md) for the backend contract, cluster-count configuration,
-mock mode, geocoding settings, and integration validation.
+Vite. Mock groups are fixed demonstration assignments; dynamic configuration is
+available in API mode and never substitutes synthetic results for a failed request.
+
+#### Clustering configuration and reruns
+
+The collapsible **Clustering configuration** section is inside the existing SD3
+sidebar. Select any combination of **Room type**, **Guest capacity**, **Bedrooms**,
+**Bathrooms**, and **Beds**, set **Number of clusters (K)**, and click
+**Run Clustering**. The initial request retains room type, guest capacity, bedrooms
+and beds with K=3; `VITE_CLUSTERING_N_CLUSTERS` can override that initial K.
+Bathrooms can be selected before running. Price and geographical coordinates are
+excluded from the feature whitelist.
+
+Draft edits do not send requests. The section summary always identifies the
+configuration that produced the displayed results, even when collapsed. Unapplied
+changes are marked separately. Each explicit run sends the selected settings to
+the existing endpoint, for example:
+
+```json
+{"features":["room_type","accommodates","bedrooms"],"n_clusters":4}
+```
+
+The Pydantic schema requires at least one of the five allowed features and an
+integer K of at least 2. KMeans also requires K not to exceed its sample count.
+After the first successful response, the UI uses the number of distinct listing
+assignments in that backend dataset as the upper bound. It does not derive a
+limit from the overview's coordinate-filtered listings or impose an arbitrary
+fixed maximum. Before that count is known, minimum/integer validation applies
+and any additional backend failure is shown normally. The displayed number of
+clusters is always the actual returned count, which can be lower than requested K.
+
+Applying a request immediately hides previous profiles, price plots and listing
+markers while calculation is in progress. The searched location, address text,
+radius and map viewport remain intact. A success replaces every coordinated view
+from one result set and resets cluster/listing selection, since the same numeric
+cluster ID can represent a different group after recalculation. Nearby summaries
+and local/overall comparisons use the new assignments. A failed run shows an
+error with no stale or synthetic results. **Retry clustering data** retries the
+last applied configuration; draft edits still require **Run Clustering**.
+
+Users can edit and apply a different valid configuration while another request
+is running. The loader aborts superseded fetches and accepts results only for
+the current request/retry identity, preventing late replies from overwriting
+newer results. Backend work may still finish server-side after a client abort.
+Repeated configurations use the backend's existing LRU cache; no frontend result
+cache or new endpoint was added. `metadata.configuration` records the submitted
+request and `metadata.inputListingCount` records the derived sample count in the
+frontend data contract; these are not assumed fields in the backend wire response.
+
+Configuration is disabled in explicit mock mode, with a visible explanation that
+the demonstration groups are fixed. The frontend does not implement another
+clustering algorithm to simulate changes to features or K.
+
+Validation: TypeScript/Vite build, ESLint, 50 frontend tests and 55 backend tests
+passed. Live browser tests verified the default configuration, three-feature K=4,
+all five features including bathrooms, K=4→2, coordinated counts/plots/colors,
+location/radius persistence, and selection resets. Controlled replies covered
+loading, supersession, errors/retry and empty results. Map bounds remained exactly
+equal to the existing layout at 320, 390, 768, 1024 and 1440px, with one persistent
+map instance and no runtime exceptions. Local screenshots and bounds are saved in
+the ignored `frontend/node_modules/.tmp/sd3-configuration/` directory.
+
+Implementation files: `src/components/clustering/ClusteringConfiguration.tsx`,
+`ListingClusters.tsx`, `ListingClusters.css`, `src/hooks/useListingClusters.ts`,
+`useClusteringData.ts`, `src/api/clustering.ts`, `src/interfaces/clustering.ts`,
+`src/utils/clusteringConfiguration.ts`, `test/clusteringConfiguration.test.mjs`,
+`test/clustering.test.mjs`, and this README. The shared explorer API, map container,
+map CSS, geographical calculations and backend production code are unchanged.
 
 ### Map layers and interactions
 

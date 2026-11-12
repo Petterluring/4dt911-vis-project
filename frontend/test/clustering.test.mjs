@@ -92,6 +92,7 @@ test('mock service works without network requests and respects cancellation', as
     const data = await fetchClustering(new AbortController().signal, null);
     assert.equal(data.listings.length, 90);
     assert.equal(data.metadata.mode, 'mock');
+    await assert.rejects(fetchClustering(new AbortController().signal, null, { features: ['beds'], n_clusters: 4 }), /API mode/);
     const controller = new AbortController();
     controller.abort();
     await assert.rejects(fetchClustering(controller.signal, null), { name: 'AbortError' });
@@ -203,6 +204,9 @@ test('SD3 sidebar and map legend share state without owning a separate map or pr
   data.listings.push({ ...data.listings[0], id: 'unassigned', clusterId: null, latitude: NaN });
   const state = { resource: { status: 'success', data }, data, mappedListings: data.listings.slice(0, 90), unassigned: 1,
     selectedClusterId: null, selectedCluster: null, selectedListing: null, searchArea: null, nearby: null, radiusMeters: 1000, location: null,
+    configuration: { draftFeatures: CLUSTERING_REQUEST.features, draftK: '3', request: CLUSTERING_REQUEST, active: null,
+      validation: { request: CLUSTERING_REQUEST, errors: {} }, pending: false, running: false, mock: true, canRun: false,
+      toggleFeature() {}, setK() {}, run() {} },
     selectCluster() {}, clearSelection() {}, selectLocation() {}, setRadiusMeters() {}, retry() {}, closeListing() {} };
   const html = renderToStaticMarkup(createElement(Legend, { state }));
   assert.match(html, /90 mapped listings/);
