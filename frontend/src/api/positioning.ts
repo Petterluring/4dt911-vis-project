@@ -11,11 +11,18 @@ export interface PropertyInput {
 }
 
 export async function fetchAmenities(signal: AbortSignal) {
-  const response = await fetch('/api/amenities/unique_values', { signal });
-  if (!response.ok) throw new Error('Amenities could not be loaded.');
-  const result: unknown = await response.json();
-  if (!Array.isArray(result) || !result.every(item => typeof item === 'string')) throw new Error('Invalid amenities response.');
-  return [...new Set<string>(result)];
+  const result = await post('/amenities', { listing_ids: [] }, signal);
+  if (!Array.isArray(result)) throw new Error('Invalid amenities response.');
+  const listingsByAmenity = new Map<string, Set<string>>();
+  for (const item of result) {
+    const { amenity, listing_id } = record(item);
+    const name = typeof amenity === 'string' ? amenity.trim() : '';
+    if (!name || (typeof listing_id !== 'number' && typeof listing_id !== 'string')) continue;
+    const ids = listingsByAmenity.get(name) ?? new Set<string>();
+    ids.add(String(listing_id));
+    listingsByAmenity.set(name, ids);
+  }
+  return [...listingsByAmenity].sort(([a, idsA], [b, idsB]) => idsB.size - idsA.size || a.localeCompare(b)).map(([name]) => name);
 }
 
 function record(value: unknown): Record<string, unknown> {

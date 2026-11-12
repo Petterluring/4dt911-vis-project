@@ -1,10 +1,11 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DISTRICTS } from '../interfaces/explorer';
-import type { District, ListingLocation, PriceMetric, PriceMode } from '../interfaces/explorer';
+import type { District, ListingLocation, PriceMetric, PriceMode, Resource } from '../interfaces/explorer';
 import type { ListingFocusRequest } from '../utils/map';
 import { useExplorerData } from '../hooks/useExplorerData';
 import { useListingClusters } from '../hooks/useListingClusters';
 import { METRICS, formatNumber, listingMetricScale, metricScale } from '../utils/explorer';
+import { fetchAmenities } from '../api/positioning';
 import DistrictMap from '../components/explorer/DistrictMap';
 import DistrictDetails from '../components/explorer/DistrictDetails';
 import ListingDetails from '../components/explorer/ListingDetails';
@@ -24,6 +25,13 @@ const ignoreDistrictHover = () => {};
 export default function Explorer() {
   const [view, setView] = useState<'map' | 'listings'>('map');
   const [sidebar, setSidebar] = useState<'listings' | 'positioning' | 'clustering'>('listings');
+  const sidebarElement = useRef<HTMLElement>(null);
+  const positioningScrollTop = useRef(0);
+  useLayoutEffect(() => {
+    if (sidebar === 'positioning' && sidebarElement.current) {
+      sidebarElement.current.scrollTop = positioningScrollTop.current;
+    }
+  }, [sidebar]);
   const [positioningOpened, setPositioningOpened] = useState(false);
   const [clusteringOpened, setClusteringOpened] = useState(false);
   const [comparable, setComparable] = useState<ListingLocation | null>(null);
@@ -43,6 +51,18 @@ export default function Explorer() {
   const data = useExplorerData(revision);
   const clustering = useListingClusters(data.listings, clusteringOpened);
   const clusteringActive = sidebar === 'clustering';
+  const [positioningDistrict, setPositioningDistrict] = useState<District>('Södermalm');
+  const [amenities, setAmenities] = useState<Resource<string[]>>({ status: 'loading' });
+  const [amenityRevision, setAmenityRevision] = useState(0);
+  useEffect(() => {
+    const request = new AbortController();
+    void fetchAmenities(request.signal).then(data => {
+      if (!request.signal.aborted) setAmenities({ status: 'success', data });
+    }).catch(() => {
+      if (!request.signal.aborted) setAmenities({ status: 'error', error: 'Amenities could not be loaded.' });
+    });
+    return () => request.abort();
+  }, [amenityRevision]);
   const [filters, setFilters] = useState<ListingFilters>({ ...EMPTY_FILTERS });
   const allListings = data.listings.data ?? EMPTY_LISTINGS;
   const listings = useMemo(() => filterListings(allListings, filters), [allListings, filters]);
@@ -63,6 +83,7 @@ export default function Explorer() {
   }
   const selectDistrict = useCallback((district: District) => {
     setSelectedListingId(null); setFocusRequest(null);
+    setPositioningDistrict(district);
     setSelectedDistrict(previous => previous === district ? null : district);
   }, []);
   const selectListing = useCallback((listing: ListingLocation) => {
@@ -81,12 +102,16 @@ export default function Explorer() {
   function selectComparable(listing: ListingLocation) {
     selectRankedListing(listing);
     setComparable(listing);
-    setView('map');
+    setSidebar('positioning');
   }
   const focusedComparable = comparable?.id === selectedListingId ? comparable : null;
   const selectedListing = focusedComparable ?? listings.find(listing => listing.id === selectedListingId) ?? null;
   const mapListings = useMemo(() => focusedComparable && !listings.some(item => item.id === focusedComparable.id)
     ? [...listings, focusedComparable] : listings, [listings, focusedComparable]);
+  const visibleRanking = useMemo(() => focusedComparable && !rankedListings.some(item => item.id === focusedComparable.id)
+    ? [...rankedListings, focusedComparable] : rankedListings, [rankedListings, focusedComparable]);
+  const rankingSource = useMemo(() => focusedComparable && !groupSource.some(item => item.id === focusedComparable.id)
+    ? [...groupSource, focusedComparable] : groupSource, [groupSource, focusedComparable]);
   const scale = useMemo(() => metricScale(data.prices.data ?? [], metric), [data.prices.data, metric]);
   const listingScale = useMemo(() => listingMetricScale(allListings, data.prices.data ?? [], metric), [allListings, data.prices.data, metric]);
   const districtLegend = showDistricts && !(showListings && detailZoom);
@@ -117,7 +142,7 @@ export default function Explorer() {
             showListings={clusteringActive || showListings} showBasemap={showBasemap} showDistricts={!clusteringActive && showDistricts} focusRequest={focusRequest}
             listingColor={clusteringActive ? clustering.listingColor : undefined} highlightedListingIds={clusteringActive ? clustering.highlightedIds : undefined}
             searchArea={clusteringActive ? clustering.searchArea : undefined}
-            onHover={clusteringActive ? ignoreDistrictHover : setHoveredDistrict} onSelect={district => { selectDistrict(district); setSidebar('listings'); }}
+            onHover={clusteringActive ? ignoreDistrictHover : setHoveredDistrict} onSelect={district => { selectDistrict(district); setSidebar(current => current === 'positioning' ? current : 'listings'); }}
             selectedListingId={clusteringActive ? clustering.mapSelectedListingId : selectedListingId} onSelectListing={clusteringActive ? clustering.selectListing : selectListing} />
             : <div className="map-message" role={data.geometry.status === 'error' ? 'alert' : 'status'}>
               {data.geometry.status === 'error' ? <>{data.geometry.error}{clusteringActive && <button type="button" className="text-button" onClick={() => setRevision(value => value + 1)}>Retry map data</button>}</> : 'Loading Stockholm district boundaries…'}
@@ -132,7 +157,8 @@ export default function Explorer() {
               <p className="metric-unit">{METRICS[metric].unit} · Linear colour scale</p>
               <label className="control-label" htmlFor="district-selection">Selected district</label>
               <select id="district-selection" disabled={!showDistricts} value={selectedDistrict ?? ''} onChange={event => {
-                setSidebar('listings');
+                setSidebar(current => current === 'positioning' ? current : 'listings');
+                if (event.target.value) setPositioningDistrict(event.target.value as District);
                 setSelectedDistrict(event.target.value ? event.target.value as District : null);
                 setHoveredDistrict(null); setSelectedListingId(null); setFocusRequest(null);
               }}><option value="">All districts</option>{DISTRICTS.map(district => <option key={district} value={district}>{district}</option>)}</select>
@@ -158,11 +184,17 @@ export default function Explorer() {
             {showListings && <section className={districtLegend ? 'listing-legend listing-legend--separated' : 'listing-legend'} aria-label="Listing colours">
               <div><strong>{listingScale.housing ? 'Listings: ' + METRICS[metric].label.toLowerCase() + ' by district' : 'Listing nightly price'}</strong>
                 <span>{METRICS[metric].unit}</span></div>
-              {listingScale.min == null ? <p>No listing price data available.</p> : <>
-                <div className="legend-gradient listing-legend-gradient" />
-                <div className="legend-labels"><span>{formatNumber(listingScale.min)}</span><span>{formatNumber(listingScale.max)}</span></div>
-              </>}
-              <p>Logarithmic colour scale</p>
+              {listingScale.stops.length > 1 ? <>
+                <div className="legend-gradient" style={{
+                  background: 'linear-gradient(to right, ' + listingScale.stops.map(stop => stop.color).join(', ') + ')',
+                }} />
+                <div className="legend-labels">{listingScale.stops.map(({ value }, index) => <span key={value}>
+                  {index === 0 ? '≤ ' : index === listingScale.stops.length - 1 ? '≥ ' : ''}{formatNumber(value)}
+                </span>)}</div>
+              </> : listingScale.stops.length === 1 ? <p>
+                <span className="listing-legend-swatch" style={{ backgroundColor: listingScale.stops[0].color }} />
+                {formatNumber(listingScale.stops[0].value)} (display range)
+              </p> : <p>No listing price data available.</p>}
               <p><span className="missing-key listing-missing-key" /> No data <span className="selected-key listing-selected-key" /> Selected listing</p>
             </section>}
           </div>}
@@ -171,17 +203,22 @@ export default function Explorer() {
         {view === 'map' && (clusteringActive ? <ClusterPricePanel state={clustering} /> : <ComparisonPanel resource={data.scatterplots} mode={mode} onMode={setMode}
           selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict} onHover={setHoveredDistrict} onSelect={selectDistrict} />)}
       </section>
-      {view === 'listings' && <ListingRanking resource={data.listings} listings={rankedListings} allListings={groupSource}
+      {view === 'listings' && <ListingRanking resource={data.listings} listings={visibleRanking} allListings={rankingSource}
         groupActive={groupIds !== null} selectedListingId={selectedListingId} selectionRevision={selectionRevision} onSelect={selectRankedListing} />}
     </div>
-    <aside className="explorer-sidebar" aria-label="Controls and information">
+    <aside ref={sidebarElement} className="explorer-sidebar" aria-label="Controls and information"
+      onScroll={event => {
+        if (sidebar === 'positioning') positioningScrollTop.current = event.currentTarget.scrollTop;
+      }}>
       <div className="segmented explorer-sidebar-tabs" role="group" aria-label="Sidebar view">
         <button type="button" aria-pressed={sidebar === 'listings'} onClick={() => setSidebar('listings')}>Filters &amp; Details</button>
         <button type="button" aria-pressed={sidebar === 'positioning'} onClick={() => { setPositioningOpened(true); setSidebar('positioning'); }}>Positioning</button>
         <button type="button" aria-pressed={sidebar === 'clustering'} onClick={() => { setClusteringOpened(true); setHoveredDistrict(null); setView('map'); setSidebar('clustering'); }}>Clustering</button>
       </div>
       {positioningOpened && <div hidden={sidebar !== 'positioning'}>
-        <PropertyPositioning roomTypes={roomTypes} onSelect={selectComparable} />
+        <PropertyPositioning roomTypes={roomTypes} onSelect={selectComparable} selectedListingId={selectedListingId}
+          district={positioningDistrict} onDistrict={setPositioningDistrict} amenities={amenities}
+          onRetryAmenities={() => { setAmenities({ status: 'loading' }); setAmenityRevision(value => value + 1); }} />
       </div>}
       {clusteringOpened && <div className="explorer-clustering-tab" hidden={sidebar !== 'clustering'}>
         <ListingClusters state={clustering} onRetry={() => setRevision(value => value + 1)} />

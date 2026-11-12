@@ -34,7 +34,7 @@ export async function post(path: string, body: unknown, signal: AbortSignal): Pr
   if (!response.ok) throw new Error(`Request failed (${response.status}). Check the backend connection.`);
   // Airbnb IDs can exceed the range of exact JavaScript integers.
   return JSON.parse(await response.text(), (key, value: unknown, context?: { source?: string }) =>
-    key === 'id' && typeof value === 'number' && !Number.isSafeInteger(value) &&
+    (key === 'id' || key === 'listing_id') && typeof value === 'number' && !Number.isSafeInteger(value) &&
       context?.source && /^\d+$/.test(context.source) ? context.source : value);
 }
 function prices(value: unknown): DistrictPrices[] {
