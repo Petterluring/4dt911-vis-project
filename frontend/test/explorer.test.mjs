@@ -329,6 +329,8 @@ test('group summaries use known values and retain zero bedrooms and unknown cate
     { price: null, review_scores_rating: 5, bedrooms: null, accommodates: null, district: null, room_type: 'Private room' },
   ]);
   assert.equal(summary.medianPrice, 200);
+  assert.equal(summary.averagePrice, 200);
+  assert.equal(summarizeListings([{ price: null }]).averagePrice, null);
   assert.equal(summary.averageRating, 4.5);
   assert.equal(summary.medianBedrooms, .5);
   assert.equal(summary.medianGuests, 3);
@@ -384,4 +386,26 @@ test('amenities use the exact ID of listings whose ID exceeds JavaScript integer
   const [listing] = await api.fetchListings(signal());
   assert.equal(listing.id, id);
   assert.deepEqual(await fetchListingAmenities(listing.id, signal()), ['Kitchen', 'Wifi']);
+});
+
+test('amenity options are ranked by distinct listing counts, preserving long listing IDs', async () => {
+  const { fetchAmenities } = await server.ssrLoadModule('/src/api/positioning.ts');
+  globalThis.fetch = async (path, init) => {
+    assert.equal(path, '/api/amenities');
+    assert.deepEqual(JSON.parse(init.body), { listing_ids: [] });
+    return new Response('[{"amenity":"Wifi","listing_id":1674762291066512278},{"amenity":"Wifi","listing_id":1674762291066512279},{"amenity":"Kitchen","listing_id":42},{"amenity":"Kitchen","listing_id":42},{"amenity":"Balcony","listing_id":42}]');
+  };
+  assert.deepEqual(await fetchAmenities(signal()), ['Wifi', 'Balcony', 'Kitchen']);
+});
+
+test('listing colour gradient spreads common prices across three anchors and clips outliers', () => {
+  const listings = [0, 600, 1000, 1370, 1600, 1940, 2625, 3400, 4494, 7000, 40000].map(price => ({ price }));
+  const scale = utils.listingMetricScale(listings, [], 'median_airbnb_price');
+  assert.deepEqual(scale.stops.map(stop => stop.value), [600, 1940, 7000]);
+  assert.equal(scale.color({ price: 0 }), scale.color({ price: 600 }));
+  assert.equal(scale.color({ price: 40000 }), scale.color({ price: 7000 }));
+  assert.notEqual(scale.color({ price: 1370 }), scale.color({ price: 1940 }));
+  assert.notEqual(scale.color({ price: 2625 }), scale.color({ price: 1940 }));
+  assert.equal(scale.color({ price: null }), utils.LISTING_COLORS.missing);
+  assert.equal(utils.listingMetricScale([{ price: 900 }, { price: 900 }], [], 'median_airbnb_price').color({ price: 900 }), utils.LISTING_COLORS.mid);
 });

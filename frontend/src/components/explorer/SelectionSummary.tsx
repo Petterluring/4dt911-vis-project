@@ -14,6 +14,7 @@ export default function SelectionSummary({ listings, onClear }: { listings: List
     {listings.length ? <>
       <dl>
         <div><dt>Median nightly price</dt><dd>{format(stats.medianPrice)}{stats.medianPrice != null && ' SEK'}</dd></div>
+        <div><dt>Average nightly price</dt><dd>{format(stats.averagePrice)}{stats.averagePrice != null && ' SEK'}</dd></div>
         <div><dt>Average rating</dt><dd>{format(stats.averageRating)}</dd></div>
         <div><dt>Median bedrooms</dt><dd>{format(stats.medianBedrooms)}</dd></div>
         <div><dt>Median guest capacity</dt><dd>{format(stats.medianGuests)}</dd></div>

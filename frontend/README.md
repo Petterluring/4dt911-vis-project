@@ -296,7 +296,7 @@ listing markers. The lasso closes on release. A new shape replaces the current
 group; hold Shift while dragging to add listings. Escape or clicking the active
 tool exits drawing mode.
 The table and summary use the selected listings that pass the active filters.
-The summary reports medians for price, bedrooms and capacity, mean listing rating,
+The summary reports median and average nightly prices, median bedrooms and capacity, mean listing rating,
 and counts by district and room type. Missing values are omitted from numeric
 aggregates. Hover or focus a row to preview that listing, or select it to open
 its details. **Clear group** restores the full filtered table.
@@ -305,13 +305,13 @@ its details. **Clear group** restores the full filtered table.
 
 Open **Positioning** in the sidebar and change the district, room type, capacity,
 bedrooms, beds or amenities, then select **Calculate** to run the comparison and prediction. Choose
-5, 10, 20 or 50 comparables. Their asking-price histogram and median provide
-context for the estimated nightly asking price. Selecting a comparable opens
-its details and focuses the map. The bar chart reports signed contributions
-in SEK relative to the model baseline.
+5, 10, 20 or 50 comparables (default: 20). Their asking-price histogram and median provide
+context for the estimated nightly asking price. Select a histogram bar to
+highlight its listings. Selecting a comparable focuses it in the current view.
+The star plot shows the magnitude and sign of each contribution in SEK.
 
-The frontend loads amenity choices from GET /amenities/unique_values and
-sends the scenario to POST /listing-comparisons/compare and
+The frontend loads amenity associations from POST /amenities at startup
+and ranks all options by the number of listings that have them. It sends the scenario to POST /listing-comparisons/compare and
 POST /listing-comparisons/predict. Similarity uses the selected amenity names;
 the current prediction model uses their count. The location input is a
 district, as supported by the API. The sidebar combines filters and selection details, including the selected

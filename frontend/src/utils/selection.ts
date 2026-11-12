@@ -42,6 +42,7 @@ export function summarizeListings(listings: ListingLocation[]) {
   const prices = values('price'), ratings = values('review_scores_rating');
   return {
     medianPrice: median(prices), priceCount: prices.length,
+    averagePrice: prices.length ? prices.reduce((total, price) => total + price, 0) / prices.length : null,
     averageRating: ratings.length ? ratings.reduce((total, rating) => total + rating, 0) / ratings.length : null,
     ratingCount: ratings.length, medianBedrooms: median(values('bedrooms')), medianGuests: median(values('accommodates')),
     districts: counts('district'), roomTypes: counts('room_type'),

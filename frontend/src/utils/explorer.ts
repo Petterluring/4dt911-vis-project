@@ -1,4 +1,4 @@
-import { scaleSequential, interpolateRgb } from 'd3';
+import { scaleSequential, scaleLinear, interpolateRgb, quantileSorted } from 'd3';
 import { DISTRICTS } from '../interfaces/explorer';
 import type { District, PriceMetric, DistrictPrices, PriceMode, ListingLocation } from '../interfaces/explorer';
 
@@ -40,23 +40,29 @@ export function metricScale(prices: DistrictPrices[], metric: PriceMetric) {
   return { min, max, color: (value: number | null | undefined) => value == null ? CHART_COLORS.missing : scale(value) };
 }
 
-export const LISTING_COLORS = { low: '#949494', high: '#171717', missing: '#D8D8D8' };
+export const LISTING_COLORS = { low: '#267EB0', mid: '#8655B7', high: '#AC214D', missing: '#D8D8D8' };
 
 export function listingMetricScale(listings: ListingLocation[], prices: DistrictPrices[], metric: PriceMetric) {
   const housing = metric.endsWith('housing_price');
   const districts = new Map(prices.map(row => [row.district, row[metric]]));
   const valueFor = (listing: ListingLocation) =>
     housing ? (listing.district ? districts.get(listing.district) : null) : listing.price;
-  let min: number | null = null, max: number | null = null;
-  for (const listing of listings) {
+  const isPrice = (value: number | null | undefined): value is number =>
+    value != null && Number.isFinite(value) && value >= 0;
+  const values = listings.map(valueFor).filter(isPrice).sort((a, b) => a - b);
+  const low = quantileSorted(values, .1), middle = quantileSorted(values, .5), high = quantileSorted(values, .9);
+  // Clip the tails so a few extreme prices do not compress the visible range.
+  const stops = low == null || middle == null || high == null ? []
+    : low === high ? [{ value: middle, color: LISTING_COLORS.mid }]
+      : [
+        { value: low, color: LISTING_COLORS.low },
+        ...(low < middle && middle < high ? [{ value: middle, color: LISTING_COLORS.mid }] : []),
+        { value: high, color: LISTING_COLORS.high },
+      ];
+  const scale = scaleLinear<string>().domain(stops.map(stop => stop.value)).range(stops.map(stop => stop.color)).clamp(true);
+  return { housing, stops, color: (listing: ListingLocation) => {
     const value = valueFor(listing);
-    if (value == null || !Number.isFinite(value) || value < 0) continue;
-    min = Math.min(min ?? value, value);
-    max = Math.max(max ?? value, value);
-  }
-  const scale = scaleSequential(interpolateRgb(LISTING_COLORS.low, LISTING_COLORS.high)).domain([Math.log1p(min ?? 0), Math.log1p(max ?? 1)]).clamp(true);
-  return { housing, min, max, color: (listing: ListingLocation) => {
-    const value = valueFor(listing);
-    return value == null || !Number.isFinite(value) || value < 0 ? LISTING_COLORS.missing : scale(Math.log1p(value));
+    if (!isPrice(value) || !stops.length) return LISTING_COLORS.missing;
+    return stops.length === 1 ? stops[0].color : scale(value);
   } };
 }
