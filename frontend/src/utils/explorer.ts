@@ -8,7 +8,7 @@ export const METRICS: Record<PriceMetric, { label: string; unit: string }> = {
   average_airbnb_price: { label: 'Average Airbnb price', unit: 'SEK / night' },
   median_airbnb_price: { label: 'Median Airbnb price', unit: 'SEK / night' },
 };
-export const CHART_COLORS = { low: '#DFEFF0', high: '#167D8D', selected: '#E89A45', missing: '#DCE4E8' };
+export const CHART_COLORS = { low: '#DFEFF0', high: '#167D8D', selected: '#E89A45', missing: '#DCE4E8', priceRange: '#075985' };
 export function isDistrict(value: unknown): value is District {
   return typeof value === 'string' && (DISTRICTS as readonly string[]).includes(value);
 }
@@ -42,14 +42,10 @@ export function metricScale(prices: DistrictPrices[], metric: PriceMetric) {
 
 export const LISTING_COLORS = { low: '#267EB0', mid: '#8655B7', high: '#AC214D', missing: '#D8D8D8' };
 
-export function listingMetricScale(listings: ListingLocation[], prices: DistrictPrices[], metric: PriceMetric) {
-  const housing = metric.endsWith('housing_price');
-  const districts = new Map(prices.map(row => [row.district, row[metric]]));
-  const valueFor = (listing: ListingLocation) =>
-    housing ? (listing.district ? districts.get(listing.district) : null) : listing.price;
+export function listingPriceScale(listings: ListingLocation[]) {
   const isPrice = (value: number | null | undefined): value is number =>
     value != null && Number.isFinite(value) && value >= 0;
-  const values = listings.map(valueFor).filter(isPrice).sort((a, b) => a - b);
+  const values = listings.map(listing => listing.price).filter(isPrice).sort((a, b) => a - b);
   const low = quantileSorted(values, .1), middle = quantileSorted(values, .5), high = quantileSorted(values, .9);
   // Clip the tails so a few extreme prices do not compress the visible range.
   const stops = low == null || middle == null || high == null ? []
@@ -60,8 +56,8 @@ export function listingMetricScale(listings: ListingLocation[], prices: District
         { value: high, color: LISTING_COLORS.high },
       ];
   const scale = scaleLinear<string>().domain(stops.map(stop => stop.value)).range(stops.map(stop => stop.color)).clamp(true);
-  return { housing, stops, color: (listing: ListingLocation) => {
-    const value = valueFor(listing);
+  return { stops, color: (listing: ListingLocation) => {
+    const value = listing.price;
     if (!isPrice(value) || !stops.length) return LISTING_COLORS.missing;
     return stops.length === 1 ? stops[0].color : scale(value);
   } };

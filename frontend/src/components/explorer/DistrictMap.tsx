@@ -1,24 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { MouseEvent, PointerEvent } from 'react';
-import { select, zoom, zoomIdentity, zoomTransform } from 'd3';
+import { quadtree, select, zoom, zoomIdentity, zoomTransform } from 'd3';
 import type { ZoomBehavior } from 'd3';
-import type { ListingFocusRequest } from '../../utils/map';
+import type { ListingFocusRequest, MapBounds } from '../../utils/map';
 import type { District, DistrictGeometry, DistrictPrices, ListingLocation, PriceMetric } from '../../interfaces/explorer';
 import type { LocationSearchArea } from '../../interfaces/location';
 import { formatDistance, radiusGeometry } from '../../utils/location';
-import { CHART_COLORS, listingMetricScale, metricScale } from '../../utils/explorer';
+import { CHART_COLORS, listingPriceScale, metricScale } from '../../utils/explorer';
 import { districtPath, fittedTransform, focusedAreaTransform, focusedListingTransform, project, screenDistrictPath, visibleTiles } from '../../utils/map';
 import { MAP_CLICK_DISTANCE, markerRadii, canSelectListings, movedBeyondClick, nearestListing } from '../../utils/listing';
 import { listingsInLasso, listingsInRectangle, selectionBounds } from '../../utils/selection';
 import type { Point } from '../../utils/selection';
 type SelectionTool = 'rectangle' | 'lasso';
+const BASEMAP_URL = 'https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile';
+const BASEMAP_MAX_ZOOM = 16;
 interface Props {
   searchArea?: LocationSearchArea | null;
   listingColor?: (listing: ListingLocation) => string;
   highlightedListingIds?: ReadonlySet<string> | null;
-  listingScale?: ReturnType<typeof listingMetricScale>;
+  listingScale?: ReturnType<typeof listingPriceScale>;
   onDetailZoom?: (active: boolean) => void;
   groupIds?: ReadonlySet<string> | null;
+  comparableIds?: ReadonlySet<string> | null;
+  histogramIds?: ReadonlySet<string> | null;
+  comparisonIds?: ReadonlySet<string>;
+  linkedListings?: ListingLocation[];
+  hoveredListingId?: string | null;
+  onHoverListing?: (id: string | null) => void;
+  onViewportChange?: (bounds: MapBounds) => void;
   onSelectGroup?: (ids: string[], add: boolean) => void;
   geometry: DistrictGeometry;
   prices: DistrictPrices[];
@@ -33,11 +42,12 @@ interface Props {
   focusRequest?: ListingFocusRequest | null;
   onHover: (district: District | null) => void;
   onSelect: (district: District) => void;
-  onSelectListing: (listing: ListingLocation) => void;
+  onSelectListing?: (listing: ListingLocation) => void;
 }
 export default function DistrictMap({ geometry, prices, listings, metric, selectedDistrict,
-  hoveredDistrict, selectedListingId, showListings, showBasemap, showDistricts, focusRequest, onHover, onSelect, onSelectListing, groupIds, onSelectGroup, listingScale, onDetailZoom, listingColor, highlightedListingIds, searchArea }: Props) {
-  const emphasizedIds = highlightedListingIds ?? groupIds;
+  hoveredDistrict, selectedListingId, showListings, showBasemap, showDistricts, focusRequest, onHover, onSelect, onSelectListing, groupIds, comparableIds, histogramIds, comparisonIds, onSelectGroup, listingScale, onDetailZoom, listingColor, highlightedListingIds, searchArea,
+  linkedListings, hoveredListingId, onHoverListing, onViewportChange }: Props) {
+  const emphasizedIds = histogramIds ?? comparableIds ?? highlightedListingIds ?? groupIds;
   const container = useRef<HTMLDivElement>(null);
   const svg = useRef<SVGSVGElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -54,6 +64,12 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   const listingsSelectable = canSelectListings(transform.k);
   const detailZoom = showListings && transform.k >= 2 ** 15;
   const districtsVisible = showDistricts && !detailZoom;
+  const linkedPositions = useMemo(() => new Map(linkedListings?.map(listing =>
+    [listing.id, project(listing.longitude, listing.latitude)])), [linkedListings]);
+  const hoverIndex = useMemo(() => quadtree([...linkedPositions], point => point[1][0], point => point[1][1]), [linkedPositions]);
+  const hoveredPoint = hoveredListingId ? linkedPositions.get(hoveredListingId) : undefined;
+  const hoverPosition = hoveredPoint && transform.apply(hoveredPoint);
+  const hoverRadius = markerRadii(transform.k).selected + 3;
   useEffect(() => { onDetailZoom?.(detailZoom); if (detailZoom) onHover(null); }, [detailZoom, onDetailZoom, onHover]);
   const [tileError, setTileError] = useState(false);
   const [tileRevision, setTileRevision] = useState(0);
@@ -66,7 +82,7 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       path: path(feature) ?? '', center: transform.apply(districtPath.centroid(feature)),
     }));
   }, [geometry, transform, districtsVisible]);
-  const tiles = useMemo(() => showBasemap ? visibleTiles(transform, size.width, size.height) : [], [transform, size, showBasemap]);
+  const tiles = useMemo(() => showBasemap ? visibleTiles(transform, size.width, size.height, BASEMAP_MAX_ZOOM) : [], [transform, size, showBasemap]);
   const areaGeometry = useMemo(() => searchArea ? radiusGeometry(searchArea) : null, [searchArea]);
   const searchPoint = searchArea ? transform.apply(project(searchArea.location.longitude, searchArea.location.latitude)) : null;
   useEffect(() => {
@@ -86,12 +102,15 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       .scaleExtent([128, 2 ** 19])
       .translateExtent([[0, 0], [256, 256]])
       .clickDistance(MAP_CLICK_DISTANCE)
-      .on('zoom', event => setTransform(event.transform));
+      .on('zoom', event => setTransform(event.transform))
+      .on('end', event => {
+        onViewportChange?.([event.transform.invert([0, 0]), event.transform.invert([size.width, size.height])]);
+      });
     element.call(behavior).on('dblclick.zoom', null);
     zoomBehavior.current = behavior;
     element.call(behavior.transform, fittedTransform(geometry, size.width, size.height));
     return () => { element.on('.zoom', null); zoomBehavior.current = null; };
-  }, [geometry, size]);
+  }, [geometry, size, onViewportChange]);
   useEffect(() => {
     const element = svg.current, behavior = zoomBehavior.current;
     if (!element || !behavior || !focusRequest) return;
@@ -124,11 +143,13 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
     context.clearRect(0, 0, size.width, size.height);
     if (!showListings) return;
     const radii = markerRadii(transform.k);
+    const highlightRadius = Math.max(histogramIds ? 5 : comparableIds ? 4 : 0, radii.normal + 1);
+    const highlightStroke = histogramIds ? CHART_COLORS.priceRange : comparableIds ? '#172B36' : CHART_COLORS.selected;
     function drawMarkers(highlight: boolean) {
       if (!context) return;
-      const radius = highlight ? radii.normal + 1 : radii.normal;
-      context.strokeStyle = highlight ? CHART_COLORS.selected : '#FFFFFF';
-      context.lineWidth = highlight ? 1.5 : .75;
+      const radius = highlight ? highlightRadius : radii.normal;
+      context.strokeStyle = highlight ? highlightStroke : '#FFFFFF';
+      context.lineWidth = highlight ? (histogramIds ? 2.5 : 1.5) : .75;
       context.globalAlpha = highlight ? .95 : emphasizedIds ? .25 : .65;
       for (const listing of listings) {
         if (Boolean(emphasizedIds?.has(listing.id)) !== highlight) continue;
@@ -143,10 +164,17 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
     }
     drawMarkers(false);
     if (emphasizedIds) drawMarkers(true);
-    const selected = listings.find(listing => listing.id === selectedListingId);
-    if (selected) {
+    const selectedListings = listings.filter(listing => listing.id === selectedListingId || comparisonIds?.has(listing.id));
+    for (const selected of selectedListings) {
       const [x, y] = transform.apply(project(selected.longitude, selected.latitude));
       context.globalAlpha = 1;
+      if (histogramIds?.has(selected.id)) {
+        context.beginPath();
+        context.arc(x, y, radii.selected + 3, 0, Math.PI * 2);
+        context.strokeStyle = CHART_COLORS.priceRange;
+        context.lineWidth = 2;
+        context.stroke();
+      }
       context.beginPath();
       context.arc(x, y, radii.selected + 2, 0, Math.PI * 2);
       context.fillStyle = '#FFFFFF';
@@ -158,16 +186,25 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       context.lineWidth = 2;
       context.fill(); context.stroke();
     }
-  }, [listings, transform, size, showListings, selectedListingId, emphasizedIds, listingScale, listingColor]);
+  }, [listings, transform, size, showListings, selectedListingId, emphasizedIds, comparableIds, histogramIds, comparisonIds, listingScale, listingColor]);
   function updateGesture(event: PointerEvent<SVGSVGElement>) {
     if (gesture.current.active && movedBeyondClick(gesture.current.start, [event.clientX, event.clientY])) gesture.current.moved = true;
+  }
+  function hoverListing(event: PointerEvent<SVGSVGElement>) {
+    if (!onHoverListing || !showListings || event.pointerType === 'touch' || event.buttons !== 0) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const [x, y] = transform.invert([event.clientX - bounds.left, event.clientY - bounds.top]);
+    onHoverListing(hoverIndex.find(x, y, Math.max(8, markerRadii(transform.k).normal + 2) / transform.k)?.[0] ?? null);
   }
   function handleClick(event: MouseEvent<SVGSVGElement>) {
     if (event.detail === 0) return;
     if (gesture.current.moved) { event.preventDefault(); event.stopPropagation(); return; }
-    if (!showListings || !listingsSelectable) return;
+    if (!onSelectListing || !showListings || (!comparableIds && !listingsSelectable && !linkedListings?.length)) return;
     const bounds = event.currentTarget.getBoundingClientRect();
-    const listing = nearestListing(groupIds ? listings.filter(item => groupIds.has(item.id)) : listings, transform, [event.clientX - bounds.left, event.clientY - bounds.top]);
+    const candidateIds = comparableIds ?? groupIds;
+    const candidates = !listingsSelectable && linkedListings?.length ? linkedListings
+      : candidateIds ? listings.filter(item => candidateIds.has(item.id)) : listings;
+    const listing = nearestListing(candidates, transform, [event.clientX - bounds.left, event.clientY - bounds.top]);
     if (listing) {
       event.stopPropagation(); onHover(null); onSelectListing(listing);
     }
@@ -197,7 +234,13 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
         <button type="button" onClick={() => changeZoom(.5)} aria-label="Zoom out">−</button>
       </div>
       <button className="recenter-button" type="button" onClick={resetView} title={searchArea ? 'Fit the selected search area' : 'Fit all Stockholm districts'} aria-label="Recenter map">Recenter</button>
-      {onSelectGroup && showListings && <div className="map-selection-tools" role="group" aria-label="Listing selection tools">
+      {showListings && onSelectListing && <p className="map-navigation__hint" role="status">
+        {comparableIds ? 'Click a comparable' : listingsSelectable ? 'Click a listing to explore' : 'Zoom in to select listings'}
+      </p>}
+    </div>;
+  const selectionControls = onSelectGroup && showListings && <div className="map-selection panel">
+      <strong>Select listings</strong>
+      <div className="map-selection-tools" role="group" aria-label="Listing selection tools">
         {(['rectangle', 'lasso'] as const).map(tool => <button key={tool} type="button"
           aria-pressed={drawingEnabled && selectionTool === tool}
           title={tool === 'rectangle' ? 'Draw a rectangle' : 'Draw a freehand lasso'}
@@ -205,25 +248,28 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
             cancelDrawing();
             if (selectionTool !== tool) { onHover(null); setSelectionTool(tool); }
           }}>
-          <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
             {tool === 'rectangle' ? <rect x="3" y="4" width="14" height="12" rx="1" strokeDasharray="3 2" />
               : <><path d="M6 13C1 12 2 5 8 4c5-2 10 1 10 5s-5 6-10 5" /><path d="M8 14c-1-3-5-2-4 1s6 0 5 3" /></>}
           </svg>
           {tool === 'rectangle' ? 'Rectangle' : 'Lasso'}
         </button>)}
-      </div>}
-      {drawingEnabled ? <p className="map-navigation__hint" role="status">{selectionTool === 'lasso' ? 'Draw around listings.' : 'Drag a box.'} Hold Shift to add.</p> : showListings && <p className="map-navigation__hint" role="status">{listingsSelectable ? 'Click a listing to explore' : 'Zoom in to select listings'}</p>}
+      </div>
+      {drawingEnabled && <p className="map-navigation__hint" role="status">{selectionTool === 'lasso' ? 'Draw around listings.' : 'Drag a box.'} Hold Shift to add.</p>}
     </div>;
   return <div className="district-map" ref={container}>
     <svg ref={svg} width={size.width} height={size.height} aria-label={districtsVisible ? 'Interactive Stockholm district map' : 'Interactive Stockholm listing map'} focusable="false"
       onDragStart={event => event.preventDefault()} onClickCapture={handleClick}
       onPointerDownCapture={event => {
         if (event.isPrimary) gesture.current = { start: [event.clientX, event.clientY], moved: false, active: true };
-      }} onPointerMoveCapture={updateGesture} onPointerUpCapture={event => { updateGesture(event); gesture.current.active = false; }}
+        onHoverListing?.(null);
+      }} onPointerMoveCapture={event => { updateGesture(event); hoverListing(event); }}
+      onPointerLeave={() => onHoverListing?.(null)}
+      onPointerUpCapture={event => { updateGesture(event); gesture.current.active = false; }}
       onPointerCancelCapture={() => { gesture.current.moved = true; gesture.current.active = false; }}>
       <g className="map-tiles" aria-hidden="true" pointerEvents="none">
         {tiles.map(tile => <image key={`${tile.z}/${tile.x}/${tile.y}/${tileRevision}`}
-          href={`https://tile.openstreetmap.org/${tile.z}/${tile.x}/${tile.y}.png`}
+          href={`${BASEMAP_URL}/${tile.z}/${tile.y}/${tile.x}`}
           x={transform.x + tile.x * tile.size * transform.k} y={transform.y + tile.y * tile.size * transform.k}
           width={tile.size * transform.k + .5} height={tile.size * transform.k + .5}
           onError={() => setTileError(true)} />)}
@@ -231,7 +277,7 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       {districtsVisible && <g className="map-districts">
         {paths.map(({ district, path }) => <path key={district} d={path} fillRule="evenodd"
           fill={selectedDistrict === district ? CHART_COLORS.selected : scale.color(values.get(district))}
-          fillOpacity={showBasemap ? .7 : 1}
+          fillOpacity={showBasemap ? .58 : 1}
           stroke={selectedDistrict === district || hoveredDistrict === district ? CHART_COLORS.selected : '#FFFFFF'}
           strokeWidth={selectedDistrict === district || hoveredDistrict === district ? 3 : 1.5}
           focusable="false" aria-label={district} data-selected={selectedDistrict === district}
@@ -244,6 +290,10 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       </path>}
     </svg>
     <canvas ref={canvas} className="listing-canvas" aria-hidden="true" />
+    {showListings && hoverPosition && <span className="map-listing-hover" aria-hidden="true" style={{
+      left: hoverPosition[0], top: hoverPosition[1], width: hoverRadius * 2, height: hoverRadius * 2,
+      borderColor: CHART_COLORS.priceRange,
+    }} />}
     {searchPoint && searchArea && <svg className="map-search-overlay" width={size.width} height={size.height} role="img"
       aria-label={`Search location: ${searchArea.location.label}. Radius ${formatDistance(searchArea.radiusMeters)}.`}>
       <g transform={`translate(${searchPoint[0]} ${searchPoint[1]})`}>
@@ -300,13 +350,14 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       {box && <div className="map-selection-box" style={selectionBounds(box.start, box.end)} />}
     </div>}
     {navigation}
+    {selectionControls}
     {showBasemap && tileError && <div className="tile-error panel" role="status">
       Some map tiles are unavailable. District layers remain usable.
       <button className="text-button" onClick={() => { setTileRevision(value => value + 1); setTileError(false); }}>Retry tiles</button>
     </div>}
     {(districtsVisible || showBasemap) && <div className="map-attribution">
       {districtsVisible && <>District boundaries: City of Stockholm{showBasemap && ' · '}</>}
-      {showBasemap && <>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></>}
+      {showBasemap && <>Esri, HERE, Garmin, the GIS user community, © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a></>}
     </div>}
   </div>;
 }

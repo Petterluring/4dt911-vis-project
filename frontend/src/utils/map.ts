@@ -4,7 +4,13 @@ import type { DistrictGeometry, ListingLocation } from '../interfaces/explorer';
 import type { LocationSearchArea } from '../interfaces/location';
 import { radiusGeometry } from './location';
 export interface ListingFocusRequest { listing: ListingLocation; sequence: number }
-// Web Mercator in a 256 px world aligns the vector overlays with OSM raster tiles.
+export type MapBounds = [[number, number], [number, number]];
+
+export function listingInBounds(listing: ListingLocation, [[left, top], [right, bottom]]: MapBounds): boolean {
+  const [x, y] = project(listing.longitude, listing.latitude);
+  return x >= left && x <= right && y >= top && y <= bottom;
+}
+// Web Mercator in a 256 px world aligns the overlays with the basemap tiles.
 export function project(longitude: number, latitude: number): [number, number] {
   const clamped = Math.max(-85.051129, Math.min(85.051129, latitude));
   const radians = clamped * Math.PI / 180;
@@ -40,8 +46,8 @@ export function focusedAreaTransform(area: LocationSearchArea, width: number, he
   return zoomIdentity.translate(viewport.left + viewport.width / 2, viewport.top + viewport.height / 2)
     .scale(scale).translate(-x, -y);
 }
-export function visibleTiles(transform: ZoomTransform, width: number, height: number) {
-  const z = Math.max(0, Math.min(19, Math.floor(Math.log2(transform.k))));
+export function visibleTiles(transform: ZoomTransform, width: number, height: number, maxZoom = 19) {
+  const z = Math.max(0, Math.min(maxZoom, Math.floor(Math.log2(transform.k))));
   const count = 2 ** z, size = 256 / count;
   const [x0, y0] = transform.invert([0, 0]), [x1, y1] = transform.invert([width, height]);
   const tiles: { x: number; y: number; z: number; size: number }[] = [];

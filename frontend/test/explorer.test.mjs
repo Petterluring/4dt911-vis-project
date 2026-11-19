@@ -106,6 +106,36 @@ test('comparison markup retains real zero scores, selection, missing counts and 
   assert.match(html, /Tourism score/);
 });
 
+test('listing chart uses the map viewport and skips listings with incomplete axes', async () => {
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { default: ComparisonPanel } = await server.ssrLoadModule('/src/components/explorer/ComparisonPanel.tsx');
+  const { listingsForPriceChart } = await server.ssrLoadModule('/src/utils/listing.ts');
+  const inside = { id: '9007199254740993', name: 'Studio', longitude: 18.01, latitude: 59.33, accommodates: 2, price: 0 };
+  const outside = { ...inside, id: '2', longitude: 18.20 };
+  const incomplete = { ...inside, id: '3', accommodates: null };
+  const bounds = [map.project(18.00, 59.34), map.project(18.02, 59.32)];
+  const values = listingsForPriceChart([inside, outside, incomplete], bounds);
+  assert.deepEqual(values.map(point => [point.listing.id, point.guests, point.price]), [[inside.id, 2, 0]]);
+  assert.equal(listingsForPriceChart([inside, outside, incomplete], null).length, 2);
+
+  const html = renderToStaticMarkup(createElement(ComparisonPanel, {
+    resource: { status: 'loading' }, mode: 'median', selectedDistrict: null, hoveredDistrict: null,
+    onMode() {}, onHover() {}, onSelect() {},
+    listingChart: {
+      view: 'listings', scope: 'map', values, hoveredId: inside.id, selectedId: null,
+      onView() {}, onScope() {}, onHover() {}, onSelect() {},
+    },
+  }));
+  assert.match(html, /Tourism score|Tourism &amp; Airbnb supply/);
+  assert.match(html, /Nightly price \(SEK\): 0/);
+  const guestTicks = [...html.matchAll(/class="chart-tick"[^>]*text-anchor="middle">([^<]+)<\/text>/g)].map(tick => tick[1]);
+  assert.equal(guestTicks[0], '0');
+  assert.ok(guestTicks.every(label => Number(label) >= 0));
+  assert.match(html, /aria-label="Listing chart scope"/);
+  assert.match(html, /role="tooltip".*Studio/);
+});
+
 
 test('listing details normalize API values and retain studio bedrooms and zero reviews', async () => {
   globalThis.fetch = async () => reply([{
@@ -160,16 +190,20 @@ test('district paths stay in screen coordinates and selected districts retain ma
   const { default: DistrictMap } = await server.ssrLoadModule('/src/components/explorer/DistrictMap.tsx');
   const html = renderToStaticMarkup(createElement(DistrictMap, {
     geometry, prices: [], listings: [], metric: 'median_airbnb_price',
+    comparisonIds: new Set(), listingScale: utils.listingPriceScale([]),
     selectedDistrict: 'Bromma', hoveredDistrict: null, selectedListingId: null,
     showListings: true, showBasemap: true, showDistricts: true,
-    onHover() {}, onSelect() {}, onSelectListing() {},
+    onHover() {}, onSelect() {}, onSelectListing() {}, onSelectGroup() {},
   }));
-  assert.equal((html.match(/<path /g) ?? []).length, 11);
-  assert.match(html, /fill="#E89A45" fill-opacity="0.7"/);
+  assert.equal((html.match(/<path [^>]*data-selected/g) ?? []).length, 11);
+  assert.match(html, /fill="#E89A45" fill-opacity="0.58"/);
   assert.doesNotMatch(html, /<g transform="translate/);
   assert.ok(html.indexOf('class="listing-canvas"') < html.indexOf('class="map-label-overlay"'));
   assert.match(html, /aria-label="Recenter map"/);
   assert.match(html, /Zoom in to select listings/);
+  assert.match(html, /aria-label="Listing selection tools"/);
+  assert.match(html, /Draw a rectangle/);
+  assert.match(html, /Draw a freehand lasso/);
   assert.doesNotMatch(html, /<path[^>]*tabindex=/);
   const css = await readFile(new URL('../src/pages/Explorer.css', import.meta.url), 'utf8');
   assert.doesNotMatch(css, /filter:\s*saturate/);
@@ -209,6 +243,7 @@ test('disabling districts removes map geometry and labels while preserving listi
   const { default: DistrictMap } = await server.ssrLoadModule('/src/components/explorer/DistrictMap.tsx');
   const props = {
     geometry, prices: [], listings: [], metric: 'median_airbnb_price',
+    comparisonIds: new Set(), listingScale: utils.listingPriceScale([]),
     selectedDistrict: 'Bromma', hoveredDistrict: 'Farsta', selectedListingId: null,
     showListings: true, showBasemap: true,
     onHover() {}, onSelect() {}, onSelectListing() {},
@@ -216,7 +251,7 @@ test('disabling districts removes map geometry and labels while preserving listi
   const withoutDistricts = renderToStaticMarkup(createElement(DistrictMap, { ...props, showDistricts: false }));
   assert.doesNotMatch(withoutDistricts, /class="map-districts"|class="map-label-overlay"|<path /);
   assert.match(withoutDistricts, /class="listing-canvas"/);
-  assert.match(withoutDistricts, /tile\.openstreetmap\.org/);
+  assert.match(withoutDistricts, /World_Light_Gray_Base\/MapServer\/tile/);
   assert.match(withoutDistricts, /aria-label="Recenter map"/);
   assert.match(withoutDistricts, /OpenStreetMap contributors/);
   assert.doesNotMatch(withoutDistricts, /District boundaries:/);
@@ -284,9 +319,28 @@ test('dashboard starts in map view with shared filters and both scatterplots', a
   assert.match(html, /aria-pressed="false">Positioning/);
   assert.doesNotMatch(html, />Listing Clusters<|class="listing-clusters"/);
   assert.match(html, /Listing filters/);
+  assert.match(html, /checked=""\/><span>Basemap<\/span>/);
   assert.doesNotMatch(html, /id="ranking-title"/);
   assert.match(html, /id="district-comparison"/);
   assert.doesNotMatch(html, /Compare districts|Close district comparison/);
+});
+
+test('positioning comparison shows two listings with separate predicted and listed price rows', async () => {
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { default: PropertyComparison } = await server.ssrLoadModule('/src/components/explorer/PropertyComparison.tsx');
+  const input = { district: 'Bromma', room_type: 'Private room', accommodates: 2, bedrooms: 1, beds: 1, amenities: [] };
+  const first = { ...input, id: '1', name: 'Studio', bedrooms: 0, price: 950 };
+  const second = { ...input, id: '2', name: 'Private room in Bromma', price: null };
+  const html = renderToStaticMarkup(createElement(PropertyComparison, {
+    input, listings: [first, second], prediction: { status: 'success', data: { price: 1500 } }, onRemove() {}, hidden: false,
+  }));
+  assert.match(html, /2 of 2 selected/);
+  assert.match(html, /Predicted nightly price/);
+  assert.match(html, /Listed nightly price/);
+  assert.match(html, /950 SEK/);
+  assert.match(html, /property-comparison__difference">0</);
+  assert.match(html, /aria-label="Remove Studio"/);
 });
 
 test('listing filters combine inclusive bounds, preserve zero and exclude unknown values only for active fields', async () => {
@@ -400,12 +454,12 @@ test('amenity options are ranked by distinct listing counts, preserving long lis
 
 test('listing colour gradient spreads common prices across three anchors and clips outliers', () => {
   const listings = [0, 600, 1000, 1370, 1600, 1940, 2625, 3400, 4494, 7000, 40000].map(price => ({ price }));
-  const scale = utils.listingMetricScale(listings, [], 'median_airbnb_price');
+  const scale = utils.listingPriceScale(listings);
   assert.deepEqual(scale.stops.map(stop => stop.value), [600, 1940, 7000]);
   assert.equal(scale.color({ price: 0 }), scale.color({ price: 600 }));
   assert.equal(scale.color({ price: 40000 }), scale.color({ price: 7000 }));
   assert.notEqual(scale.color({ price: 1370 }), scale.color({ price: 1940 }));
   assert.notEqual(scale.color({ price: 2625 }), scale.color({ price: 1940 }));
   assert.equal(scale.color({ price: null }), utils.LISTING_COLORS.missing);
-  assert.equal(utils.listingMetricScale([{ price: 900 }, { price: 900 }], [], 'median_airbnb_price').color({ price: 900 }), utils.LISTING_COLORS.mid);
+  assert.equal(utils.listingPriceScale([{ price: 900 }, { price: 900 }]).color({ price: 900 }), utils.LISTING_COLORS.mid);
 });
