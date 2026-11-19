@@ -1,16 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { ReactNode } from 'react';
+import type { KeyboardEvent, ReactNode } from 'react';
 import { scaleLinear } from 'd3';
-import { DISTRICTS } from '../../interfaces/explorer';
-import type { District } from '../../interfaces/explorer';
 import { CHART_COLORS, formatCompact } from '../../utils/explorer';
-export interface ScatterPoint { district: District; x: number; y: number }
-interface Props {
-  id: string; title: string; subtitle: string; points: ScatterPoint[];
+export interface ScatterPoint<Key extends string> { id: Key; label: string; x: number; y: number }
+interface Props<Key extends string> {
+  id: string; title: string; subtitle: string; points: ScatterPoint<Key>[];
+  kind: 'district' | 'listing'; total?: number; emptyMessage?: string;
   xLabel: string; yLabel: string; xFromZero?: boolean; yFromZero?: boolean;
-  selectedDistrict: District | null; hoveredDistrict: District | null;
+  selectedId: Key | null; hoveredId: Key | null;
   headerControls?: ReactNode;
-  onHover: (district: District | null) => void; onSelect: (district: District) => void;
+  onHover: (id: Key | null) => void; onSelect: (id: Key) => void;
 }
 const tooltipNumber = new Intl.NumberFormat('en-SE', { maximumFractionDigits: 2 });
 function domain(values: number[], fromZero: boolean): [number, number] {
@@ -20,8 +19,8 @@ function domain(values: number[], fromZero: boolean): [number, number] {
   const padding = (max - min || Math.max(1, Math.abs(max) * .2)) * .12;
   return [min - padding, max + padding];
 }
-export default function Scatterplot({ id, title, subtitle, points, xLabel, yLabel,
-  xFromZero = false, yFromZero = false, selectedDistrict, hoveredDistrict, headerControls, onHover, onSelect }: Props) {
+export default function Scatterplot<Key extends string>({ id, title, subtitle, points, kind, total, emptyMessage, xLabel, yLabel,
+  xFromZero = false, yFromZero = false, selectedId, hoveredId, headerControls, onHover, onSelect }: Props<Key>) {
   const container = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ width: 480, height: 164 });
   useEffect(() => {
@@ -36,42 +35,69 @@ export default function Scatterplot({ id, title, subtitle, points, xLabel, yLabe
     x: scaleLinear().domain(domain(points.map(point => point.x), xFromZero)).nice(4).range([58, width - 16]),
     y: scaleLinear().domain(domain(points.map(point => point.y), yFromZero)).nice(4).range([height - 44, 12]),
   }), [points, width, height, xFromZero, yFromZero]);
-  const hovered = points.find(point => point.district === hoveredDistrict);
-  const missing = DISTRICTS.length - points.length;
+  const listingMode = kind === 'listing';
+  const pointsById = useMemo(() => new Map(points.map(point => [point.id, point])), [points]);
+  const hovered = hoveredId == null ? undefined : pointsById.get(hoveredId);
+  const selected = selectedId == null ? undefined : pointsById.get(selectedId);
+  const missing = (total ?? points.length) - points.length;
+  const listingMarks = useMemo(() => listingMode && <g aria-hidden="true">
+    {points.map(point => <circle key={point.id} cx={scales.x(point.x)} cy={scales.y(point.y)} r={3}
+      fill={CHART_COLORS.high} fillOpacity={.42} stroke="transparent" strokeWidth={4}
+      onMouseEnter={() => onHover(point.id)} onMouseLeave={() => onHover(null)} onClick={() => onSelect(point.id)} />)}
+  </g>, [listingMode, points, scales, onHover, onSelect]);
+  function handleListingKey(event: KeyboardEvent<SVGSVGElement>) {
+    const current = points.findIndex(point => point.id === hoveredId);
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      onSelect(points[Math.max(0, current)].id);
+    } else if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+      event.preventDefault();
+      const step = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
+      onHover(points[Math.max(0, Math.min(points.length - 1, current + step))].id);
+    }
+  }
   return <article className="scatterplot" aria-labelledby={`${id}-title`}>
     <header className="scatterplot__header"><h3 id={`${id}-title`}>{title}</h3>
-      {missing > 0 && <span className="chart-status" title={`${missing} districts without complete data`}>{points.length}/{DISTRICTS.length}</span>}
+      {!listingMode && missing > 0 && <span className="chart-status" title={`${missing} districts without complete data`}>{points.length}/{total}</span>}
       {headerControls}
     </header>
-    <p className="sr-only" id={`${id}-description`}>{subtitle} {points.length} districts{missing > 0 ? `; ${missing} without complete data` : ''}. Linear axes.</p>
+    <p className="sr-only" id={`${id}-description`}>{subtitle} {points.length} {kind}s{missing > 0 ? `; ${missing} without complete data` : ''}. Linear axes.
+      {listingMode && ' Use the arrow keys to browse listings and Enter to open the selected listing.'}</p>
     <div className="chart-canvas" ref={container}>
-      {points.length ? <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" role="group" aria-label={title} aria-describedby={`${id}-description`}>
+      {points.length ? <svg viewBox={`0 0 ${width} ${height}`} width="100%" height="100%" role="group" aria-label={title} aria-describedby={`${id}-description`}
+        tabIndex={listingMode ? 0 : undefined} onFocus={listingMode ? () => onHover(selectedId && pointsById.has(selectedId) ? selectedId : points[0].id) : undefined}
+        onBlur={listingMode ? () => onHover(null) : undefined} onKeyDown={listingMode ? handleListingKey : undefined}>
         {scales.y.ticks(4).map(tick => <g key={tick}>
           <line className="chart-grid" x1={margin.left} x2={width - margin.right} y1={scales.y(tick)} y2={scales.y(tick)} />
           <text className="chart-tick" x={margin.left - 10} y={scales.y(tick)} dy=".35em" textAnchor="end">{formatCompact(tick)}</text>
         </g>)}
         <line className="chart-axis" x1={margin.left} x2={width - margin.right} y1={height - margin.bottom} y2={height - margin.bottom} />
-        {scales.x.ticks(4).map(tick => <text key={tick} className="chart-tick" x={scales.x(tick)} y={height - margin.bottom + 22} textAnchor="middle">{formatCompact(tick)}</text>)}
+        {scales.x.ticks(4).filter(tick => !listingMode || Number.isInteger(tick)).map(tick => <text key={tick} className="chart-tick" x={scales.x(tick)} y={height - margin.bottom + 22} textAnchor="middle">{formatCompact(tick)}</text>)}
         <text className="chart-axis-label" x={(margin.left + width - margin.right) / 2} y={height - 6} textAnchor="middle">{xLabel}</text>
         <text className="chart-axis-label" transform={`translate(14 ${(margin.top + height - margin.bottom) / 2}) rotate(-90)`} textAnchor="middle">{yLabel}</text>
-        {points.map(point => <circle key={point.district} cx={scales.x(point.x)} cy={scales.y(point.y)}
-          r={point.district === (hoveredDistrict ?? selectedDistrict) ? 7 : 5}
-          fill={point.district === selectedDistrict ? CHART_COLORS.selected : CHART_COLORS.high}
-          stroke={point.district === hoveredDistrict || point.district === selectedDistrict ? 'var(--text)' : 'var(--surface)'} strokeWidth={1.5}
-          opacity={selectedDistrict && point.district !== selectedDistrict && point.district !== hoveredDistrict ? .4 : .9}
-          role="button" tabIndex={0} aria-pressed={point.district === selectedDistrict}
-          aria-describedby={point.district === hoveredDistrict ? `${id}-tooltip` : undefined}
-          aria-label={`${point.district}: ${xLabel} ${tooltipNumber.format(point.x)}, ${yLabel} ${tooltipNumber.format(point.y)}`}
-          onMouseEnter={() => onHover(point.district)} onMouseLeave={() => onHover(null)}
-          onFocus={() => onHover(point.district)} onBlur={() => onHover(null)}
-          onClick={() => onSelect(point.district)} onKeyDown={event => {
-            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(point.district); }
-          }}><title>{`${point.district}: ${tooltipNumber.format(point.x)} / ${tooltipNumber.format(point.y)}`}</title></circle>)}
-      </svg> : <div className="chart-empty">No complete district data is available for this plot.</div>}
+        {listingMode ? <>
+          {listingMarks}
+          {selected && <circle cx={scales.x(selected.x)} cy={scales.y(selected.y)} r={5} pointerEvents="none" fill={CHART_COLORS.selected} stroke="var(--text)" />}
+          {hovered && <circle cx={scales.x(hovered.x)} cy={scales.y(hovered.y)} r={7} pointerEvents="none" fill="none" stroke={CHART_COLORS.priceRange} strokeWidth={2} />}
+        </> : points.map(point => <circle key={point.id} cx={scales.x(point.x)} cy={scales.y(point.y)}
+          r={point.id === (hoveredId ?? selectedId) ? 7 : 5}
+          fill={point.id === selectedId ? CHART_COLORS.selected : CHART_COLORS.high}
+          stroke={point.id === hoveredId || point.id === selectedId ? 'var(--text)' : 'var(--surface)'} strokeWidth={1.5}
+          opacity={selectedId && point.id !== selectedId && point.id !== hoveredId ? .4 : .9}
+          role="button" tabIndex={0} aria-pressed={point.id === selectedId}
+          aria-describedby={point.id === hoveredId ? `${id}-tooltip` : undefined}
+          aria-label={`${point.label}: ${xLabel} ${tooltipNumber.format(point.x)}, ${yLabel} ${tooltipNumber.format(point.y)}`}
+          onMouseEnter={() => onHover(point.id)} onMouseLeave={() => onHover(null)}
+          onFocus={() => onHover(point.id)} onBlur={() => onHover(null)}
+          onClick={() => onSelect(point.id)} onKeyDown={event => {
+            if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(point.id); }
+          }}><title>{`${point.label}: ${tooltipNumber.format(point.x)} / ${tooltipNumber.format(point.y)}`}</title></circle>)}
+      </svg> : <div className="chart-empty">{emptyMessage ?? 'No complete district data is available for this plot.'}</div>}
       {hovered && <div className="chart-tooltip" id={`${id}-tooltip`} role="tooltip" style={{
         left: Math.max(4, Math.min(width - 216, scales.x(hovered.x) + 12)),
         top: Math.max(4, Math.min(height - 84, scales.y(hovered.y) - 76)),
-      }}><strong>{hovered.district}</strong><span>{xLabel}: {tooltipNumber.format(hovered.x)}</span><span>{yLabel}: {tooltipNumber.format(hovered.y)}</span></div>}
+      }}><strong>{hovered.label}</strong><span>{xLabel}: {tooltipNumber.format(hovered.x)}</span><span>{yLabel}: {tooltipNumber.format(hovered.y)}</span></div>}
+      {listingMode && <span className="sr-only" aria-live="polite">{hovered && `${hovered.label}, ${hovered.x} guests, ${tooltipNumber.format(hovered.y)} SEK per night`}</span>}
     </div>
   </article>;
 }

@@ -1,6 +1,7 @@
 import type { ZoomTransform } from 'd3';
 import type { ListingLocation } from '../interfaces/explorer';
-import { project } from './map';
+import { listingInBounds, project } from './map';
+import type { MapBounds } from './map';
 export const MAP_CLICK_DISTANCE = 5;
 export const MIN_LISTING_ZOOM = 14;
 export const MARKER_GROWTH_ZOOM = 12;
@@ -29,6 +30,17 @@ export function nearestListing(listings: ListingLocation[], transform: ZoomTrans
   }
   return nearest;
 }
+
+export function listingsForPriceChart(listings: ListingLocation[], bounds: MapBounds | null) {
+  return listings.flatMap(listing => {
+    const { accommodates, price } = listing;
+    if (accommodates == null || !Number.isInteger(accommodates) || accommodates < 1
+      || price == null || !Number.isFinite(price) || price < 0
+      || (bounds && !listingInBounds(listing, bounds))) return [];
+    return [{ listing, guests: accommodates, price }];
+  });
+}
+
 export function safeExternalUrl(value: string | null | undefined): string | null {
   if (!value) return null;
   try {
