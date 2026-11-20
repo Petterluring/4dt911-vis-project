@@ -1,19 +1,25 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { DISTRICTS } from '../interfaces/explorer';
 import type { District, ListingLocation, PriceMetric, PriceMode, Resource } from '../interfaces/explorer';
-import type { ListingFocusRequest } from '../utils/map';
+import type { ListingFocusRequest, MapBounds } from '../utils/map';
 import { useExplorerData } from '../hooks/useExplorerData';
 import { useListingClusters } from '../hooks/useListingClusters';
-import { METRICS, formatNumber, listingMetricScale, metricScale } from '../utils/explorer';
+import { usePositioning } from '../hooks/usePositioning';
+import { CHART_COLORS, METRICS, formatNumber, listingPriceScale, metricScale } from '../utils/explorer';
 import { fetchAmenities } from '../api/positioning';
 import DistrictMap from '../components/explorer/DistrictMap';
 import DistrictDetails from '../components/explorer/DistrictDetails';
 import ListingDetails from '../components/explorer/ListingDetails';
 import PropertyPositioning from '../components/explorer/PropertyPositioning';
+import PropertyComparison from '../components/explorer/PropertyComparison';
 import SelectionSummary from '../components/explorer/SelectionSummary';
 import ListingFiltersPanel from '../components/explorer/ListingFilters';
 import ListingRanking from '../components/explorer/ListingRanking';
 import ComparisonPanel from '../components/explorer/ComparisonPanel';
+import type { ListingChartScope, PriceChartView } from '../components/explorer/ComparisonPanel';
+import { listingInBounds } from '../utils/map';
+import { listingsForPriceChart, MAX_COMPARABLE_LISTINGS } from '../utils/listing';
+import type { ListingChartAxis } from '../utils/listing';
 import './Explorer.css';
 import ListingClusters from '../components/clustering/ListingClusters';
 import ClusterPricePanel from '../components/clustering/ClusterPricePanel';
@@ -22,6 +28,8 @@ import { EMPTY_FILTERS, filterListings } from '../utils/ranking';
 import type { ListingFilters } from '../utils/ranking';
 const EMPTY_LISTINGS: ListingLocation[] = [];
 const ignoreDistrictHover = () => {};
+const HOUSING_LISTING_COLOR = '#374151';
+const housingListingColor = () => HOUSING_LISTING_COLOR;
 export default function Explorer() {
   const [view, setView] = useState<'map' | 'listings'>('map');
   const [sidebar, setSidebar] = useState<'listings' | 'positioning' | 'clustering'>('listings');
@@ -34,12 +42,18 @@ export default function Explorer() {
   }, [sidebar]);
   const [positioningOpened, setPositioningOpened] = useState(false);
   const [clusteringOpened, setClusteringOpened] = useState(false);
-  const [comparable, setComparable] = useState<ListingLocation | null>(null);
+  const positioning = usePositioning();
+  const [comparison, setComparison] = useState<ListingLocation[]>([]);
   const [metric, setMetric] = useState<PriceMetric>('median_airbnb_price');
   const [mode, setMode] = useState<PriceMode>('median');
+  const [priceChartView, setPriceChartView] = useState<PriceChartView>('districts');
+  const [listingChartAxes, setListingChartAxes] = useState<[ListingChartAxis, ListingChartAxis]>(['beds', 'accommodates']);
+  const [listingChartScope, setListingChartScope] = useState<ListingChartScope>('map');
+  const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
+  const [hoveredListingId, setHoveredListingId] = useState<string | null>(null);
   const [showListings, setShowListings] = useState(true);
   const [detailZoom, setDetailZoom] = useState(false);
-  const [showBasemap, setShowBasemap] = useState(true);
+  const [basemapVisible, setBasemapVisible] = useState(true);
   const [showDistricts, setShowDistricts] = useState(true);
   const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
   const [hoveredDistrict, setHoveredDistrict] = useState<District | null>(null);
@@ -68,18 +82,36 @@ export default function Explorer() {
   const listings = useMemo(() => filterListings(allListings, filters), [allListings, filters]);
   const groupSource = useMemo(() => groupIds ? allListings.filter(listing => groupIds.has(listing.id)) : allListings, [allListings, groupIds]);
   const rankedListings = useMemo(() => groupIds ? listings.filter(listing => groupIds.has(listing.id)) : listings, [listings, groupIds]);
+  const listingChartActive = view === 'map' && sidebar === 'listings' && priceChartView === 'listings';
+  const chartBounds = listingChartScope === 'map' ? mapBounds : null;
+  const chartValues = useMemo(() => {
+    if (!listingChartActive || (listingChartScope === 'map' && !chartBounds)) return [[], []] as const;
+    return [
+      listingsForPriceChart(rankedListings, chartBounds, listingChartAxes[0]),
+      listingsForPriceChart(rankedListings, chartBounds, listingChartAxes[1]),
+    ] as const;
+  }, [listingChartActive, listingChartScope, rankedListings, chartBounds, listingChartAxes]);
+  const linkedListings = useMemo(() => listingChartActive
+    ? Array.from(new Map(chartValues.flatMap(points => points.map(({ listing }) => [listing.id, listing] as const))).values())
+    : undefined, [listingChartActive, chartValues]);
+  const listingChartMessage = data.listings.status === 'loading' ? 'Loading listings.'
+    : data.listings.error ?? (listingChartScope === 'map' && !mapBounds ? 'The map view is unavailable. Try All filtered.'
+      : 'No listings with complete data for these axes match this view.');
   function selectGroup(ids: string[], add: boolean) {
     setSidebar('listings');
     setGroupIds(previous => new Set(add && previous ? [...previous, ...ids] : ids));
     setSelectedListingId(null); setFocusRequest(null);
     setSelectedDistrict(null); setHoveredDistrict(null);
+    setHoveredListingId(null);
   }
   function clearGroup() {
     setGroupIds(null); setSelectedListingId(null); setFocusRequest(null);
+    setHoveredListingId(null);
   }
   const roomTypes = useMemo(() => [...new Set(allListings.flatMap(listing => listing.room_type ? [listing.room_type] : []))].sort(), [allListings]);
   function changeFilters(next: ListingFilters) {
     setFilters(next); setSelectedListingId(null); setFocusRequest(null);
+    setHoveredListingId(null);
   }
   const selectDistrict = useCallback((district: District) => {
     setSelectedListingId(null); setFocusRequest(null);
@@ -87,7 +119,7 @@ export default function Explorer() {
     setSelectedDistrict(previous => previous === district ? null : district);
   }, []);
   const selectListing = useCallback((listing: ListingLocation) => {
-    setComparable(null); setSidebar('listings');
+    setSidebar('listings');
     setSelectedListingId(listing.id); setFocusRequest(null);
     setSelectionRevision(previous => previous + 1);
     setSelectedDistrict(showDistricts ? listing.district : null);
@@ -99,21 +131,37 @@ export default function Explorer() {
     // A new request also recentres when the same row is clicked twice.
     setFocusRequest(previous => ({ listing, sequence: (previous?.sequence ?? 0) + 1 }));
   }, [selectListing]);
-  function selectComparable(listing: ListingLocation) {
-    selectRankedListing(listing);
-    setComparable(listing);
-    setSidebar('positioning');
+  const selectChartListing = useCallback((listing: ListingLocation) => {
+    setHoveredListingId(null);
+    setShowListings(true);
+    if (mapBounds && !listingInBounds(listing, mapBounds)) selectRankedListing(listing);
+    else selectListing(listing);
+  }, [mapBounds, selectListing, selectRankedListing]);
+  function toggleComparable(listing: ListingLocation) {
+    setComparison(current => {
+      if (current.some(item => item.id === listing.id)) return current.filter(item => item.id !== listing.id);
+      return current.length < MAX_COMPARABLE_LISTINGS ? [...current, listing] : current;
+    });
+    setShowListings(true);
   }
-  const focusedComparable = comparable?.id === selectedListingId ? comparable : null;
-  const selectedListing = focusedComparable ?? listings.find(listing => listing.id === selectedListingId) ?? null;
-  const mapListings = useMemo(() => focusedComparable && !listings.some(item => item.id === focusedComparable.id)
-    ? [...listings, focusedComparable] : listings, [listings, focusedComparable]);
-  const visibleRanking = useMemo(() => focusedComparable && !rankedListings.some(item => item.id === focusedComparable.id)
-    ? [...rankedListings, focusedComparable] : rankedListings, [rankedListings, focusedComparable]);
-  const rankingSource = useMemo(() => focusedComparable && !groupSource.some(item => item.id === focusedComparable.id)
-    ? [...groupSource, focusedComparable] : groupSource, [groupSource, focusedComparable]);
+  const positioningActive = sidebar === 'positioning';
+  const selectedListing = listings.find(listing => listing.id === selectedListingId) ?? null;
+  const comparisonIds = useMemo(() => new Set(comparison.map(listing => listing.id)), [comparison]);
+  const comparableListings = useMemo(() => (positioning.comparables?.data ?? []).flatMap(row => row.listing ? [row.listing] : []), [positioning.comparables?.data]);
+  const comparableIds = useMemo(() => positioningActive && comparableListings.length
+    ? new Set(comparableListings.map(listing => listing.id)) : null, [positioningActive, comparableListings]);
+  const mapListings = useMemo(() => {
+    if (!comparableIds) return listings;
+    const displayed = new Map(listings.map(listing => [listing.id, listing]));
+    for (const listing of comparableListings) displayed.set(listing.id, listing);
+    return [...displayed.values()];
+  }, [listings, comparableIds, comparableListings]);
+  const highlightedPriceIds = positioningActive ? positioning.highlightedPriceIds : null;
+  const histogramMapIds = useMemo(() => highlightedPriceIds && mapListings.some(listing => highlightedPriceIds.has(listing.id))
+    ? highlightedPriceIds : null, [highlightedPriceIds, mapListings]);
   const scale = useMemo(() => metricScale(data.prices.data ?? [], metric), [data.prices.data, metric]);
-  const listingScale = useMemo(() => listingMetricScale(allListings, data.prices.data ?? [], metric), [allListings, data.prices.data, metric]);
+  const listingScale = useMemo(() => listingPriceScale(allListings.length ? allListings : comparableListings), [allListings, comparableListings]);
+  const showListingPriceScale = metric === 'median_airbnb_price' || metric === 'average_airbnb_price';
   const districtLegend = showDistricts && !(showListings && detailZoom);
   const activeDistrict = showDistricts ? (view === 'map' ? hoveredDistrict : null) ?? selectedDistrict : null;
   const errors = [data.geometry, data.prices, data.tooltips, data.listings, data.scatterplots].some(resource => resource.status === 'error');
@@ -123,13 +171,17 @@ export default function Explorer() {
   }
   function clearSelection() {
     setSelectedDistrict(null); setHoveredDistrict(null); clearGroup();
+    if (positioningActive) {
+      setComparison([]);
+      positioning.clearPriceBin();
+    }
   }
   return <main className="explorer" aria-label="SABA - Stockholm Airbnb Analytics">
     <header className="explorer-header">
       <div><p className="eyebrow">SABA · Explore the city</p><h1>Explore Stockholm</h1></div>
       <div className="segmented explorer-view-switch" role="group" aria-label="Explorer view">
         <button type="button" aria-pressed={view === 'map'} onClick={() => { setView('map'); if (clusteringActive) setSidebar('listings'); }}>Map</button>
-        <button type="button" aria-pressed={view === 'listings' && sidebar !== 'clustering'} onClick={() => { setHoveredDistrict(null); setView('listings'); if (sidebar === 'clustering') setSidebar('listings'); }}>Listings</button>
+        <button type="button" aria-pressed={view === 'listings' && sidebar !== 'clustering'} onClick={() => { setHoveredDistrict(null); setHoveredListingId(null); setView('listings'); if (sidebar === 'clustering') setSidebar('listings'); }}>Listings</button>
       </div>
     </header>
     <div className="explorer-content">
@@ -137,13 +189,19 @@ export default function Explorer() {
         <div className="explorer__map panel">
           {data.geometry.status === 'success' ? <DistrictMap geometry={data.geometry.data} prices={data.prices.data ?? []}
             listings={clusteringActive ? clustering.mappedListings : mapListings} listingScale={listingScale} onDetailZoom={setDetailZoom}
-            groupIds={clusteringActive ? undefined : groupIds} onSelectGroup={!clusteringActive && data.listings.status === 'success' ? selectGroup : undefined}
+            groupIds={clusteringActive || positioningActive ? undefined : groupIds}
+            comparableIds={comparableIds} histogramIds={histogramMapIds} comparisonIds={positioningActive ? comparisonIds : undefined}
+            linkedListings={linkedListings} hoveredListingId={listingChartActive ? hoveredListingId : null}
+            onHoverListing={listingChartActive ? setHoveredListingId : undefined} onViewportChange={setMapBounds}
+            onSelectGroup={!clusteringActive && data.listings.status === 'success' ? selectGroup : undefined}
             metric={metric} selectedDistrict={clusteringActive ? null : selectedDistrict} hoveredDistrict={clusteringActive ? null : hoveredDistrict}
-            showListings={clusteringActive || showListings} showBasemap={showBasemap} showDistricts={!clusteringActive && showDistricts} focusRequest={focusRequest}
-            listingColor={clusteringActive ? clustering.listingColor : undefined} highlightedListingIds={clusteringActive ? clustering.highlightedIds : undefined}
+            showListings={clusteringActive || showListings} showBasemap={basemapVisible} showDistricts={!clusteringActive && showDistricts} focusRequest={focusRequest}
+            listingColor={clusteringActive ? clustering.listingColor : showListingPriceScale ? undefined : housingListingColor}
+            highlightedListingIds={clusteringActive ? clustering.highlightedIds : undefined}
             searchArea={clusteringActive ? clustering.searchArea : undefined}
             onHover={clusteringActive ? ignoreDistrictHover : setHoveredDistrict} onSelect={district => { selectDistrict(district); setSidebar(current => current === 'positioning' ? current : 'listings'); }}
-            selectedListingId={clusteringActive ? clustering.mapSelectedListingId : selectedListingId} onSelectListing={clusteringActive ? clustering.selectListing : selectListing} />
+            selectedListingId={clusteringActive ? clustering.mapSelectedListingId : positioningActive ? null : selectedListingId}
+            onSelectListing={clusteringActive ? clustering.selectListing : positioningActive ? (comparableIds ? toggleComparable : undefined) : selectListing} />
             : <div className="map-message" role={data.geometry.status === 'error' ? 'alert' : 'status'}>
               {data.geometry.status === 'error' ? <>{data.geometry.error}{clusteringActive && <button type="button" className="text-button" onClick={() => setRevision(value => value + 1)}>Retry map data</button>}</> : 'Loading Stockholm district boundaries…'}
             </div>}
@@ -166,12 +224,12 @@ export default function Explorer() {
                 <label><input type="checkbox" checked={showListings} onChange={event => {
                   setShowListings(event.target.checked);
                   if (!event.target.checked) { setSelectedListingId(null); setFocusRequest(null); }
-                }} /><span>Airbnb locations</span><span className="listing-key" /></label>
-                <label><input type="checkbox" checked={showBasemap} onChange={event => setShowBasemap(event.target.checked)} /><span>Street map</span></label>
+                }} /><span>Airbnb locations</span><span className="listing-key" style={showListingPriceScale ? undefined : { backgroundColor: HOUSING_LISTING_COLOR }} /></label>
+                <label><input type="checkbox" checked={basemapVisible} onChange={event => setBasemapVisible(event.target.checked)} /><span>Basemap</span></label>
                 <label><input type="checkbox" checked={showDistricts} onChange={event => toggleDistricts(event.target.checked)} /><span>Districts</span></label>
               </div>
               <div className="map-controls__footer"><span>{data.listings.status === 'success' ? `${formatNumber(listings.length)} mapped listings` : data.listings.status === 'loading' ? 'Loading listings…' : 'Listing locations unavailable'}</span>
-                <button type="button" className="text-button" disabled={!selectedDistrict && !selectedListingId && !groupIds} onClick={clearSelection}>Clear selection</button>
+                <button type="button" className="text-button" disabled={!selectedDistrict && !selectedListingId && !groupIds && !highlightedPriceIds && !(positioningActive && comparison.length)} onClick={clearSelection}>Clear selection</button>
               </div>
             </div>
           </details>
@@ -182,8 +240,8 @@ export default function Explorer() {
               : scale.min == null ? <p>No price data available.</p> : <><div className="legend-gradient" /><div className="legend-labels"><span>{formatNumber(scale.min)}</span><span>{formatNumber(scale.max)}</span></div></>}
             <p><span className="missing-key" /> No data <span className="selected-key" /> Selected district</p></>}
             {showListings && <section className={districtLegend ? 'listing-legend listing-legend--separated' : 'listing-legend'} aria-label="Listing colours">
-              <div><strong>{listingScale.housing ? 'Listings: ' + METRICS[metric].label.toLowerCase() + ' by district' : 'Listing nightly price'}</strong>
-                <span>{METRICS[metric].unit}</span></div>
+              {showListingPriceScale ? <>
+              <div><strong>Listing nightly price</strong><span>SEK / night</span></div>
               {listingScale.stops.length > 1 ? <>
                 <div className="legend-gradient" style={{
                   background: 'linear-gradient(to right, ' + listingScale.stops.map(stop => stop.color).join(', ') + ')',
@@ -195,15 +253,30 @@ export default function Explorer() {
                 <span className="listing-legend-swatch" style={{ backgroundColor: listingScale.stops[0].color }} />
                 {formatNumber(listingScale.stops[0].value)} (display range)
               </p> : <p>No listing price data available.</p>}
-              <p><span className="missing-key listing-missing-key" /> No data <span className="selected-key listing-selected-key" /> Selected listing</p>
+              </> : <p><span className="listing-legend-swatch" style={{ backgroundColor: HOUSING_LISTING_COLOR }} /> Airbnb listing</p>}
+              <p>{showListingPriceScale && <><span className="missing-key listing-missing-key" /> No data</>}
+                <span className="selected-key listing-selected-key" /> {comparableIds ? 'In comparison' : 'Selected listing'}</p>
+              {comparableIds && !histogramMapIds && <p><span className="comparable-key" /> Comparable listing</p>}
+              {histogramMapIds && <p><span className="comparable-key" style={{ borderColor: CHART_COLORS.priceRange }} /> Selected price ranges</p>}
             </section>}
           </div>}
           {clusteringActive && <ClusterMapLegend state={clustering} />}
         </div>
-        {view === 'map' && (clusteringActive ? <ClusterPricePanel state={clustering} /> : <ComparisonPanel resource={data.scatterplots} mode={mode} onMode={setMode}
-          selectedDistrict={selectedDistrict} hoveredDistrict={hoveredDistrict} onHover={setHoveredDistrict} onSelect={selectDistrict} />)}
+        {view === 'map' && !positioningActive && (clusteringActive ? <ClusterPricePanel state={clustering} />
+          : <ComparisonPanel resource={data.scatterplots} mode={mode} onMode={setMode} selectedDistrict={selectedDistrict}
+            hoveredDistrict={hoveredDistrict} onHover={setHoveredDistrict} onSelect={selectDistrict}
+            listingChart={{ view: priceChartView, scope: listingChartScope, axes: listingChartAxes, values: chartValues, emptyMessage: listingChartMessage,
+              onView: next => { setHoveredListingId(null); setPriceChartView(next); },
+              onScope: next => { setHoveredListingId(null); setListingChartScope(next); },
+              onAxis: (index, axis) => {
+                setHoveredListingId(null);
+                setListingChartAxes(current => index === 0 ? [axis, current[1]] : [current[0], axis]);
+              },
+              hoveredId: hoveredListingId, selectedId: selectedListingId, onHover: setHoveredListingId, onSelect: selectChartListing }} />)}
+        {positioningOpened && <PropertyComparison hidden={!positioningActive || view !== 'map'} listings={comparison}
+          input={positioning.submitted?.input ?? null} prediction={positioning.prediction} onRemove={toggleComparable} />}
       </section>
-      {view === 'listings' && <ListingRanking resource={data.listings} listings={visibleRanking} allListings={rankingSource}
+      {view === 'listings' && <ListingRanking resource={data.listings} listings={rankedListings} allListings={groupSource}
         groupActive={groupIds !== null} selectedListingId={selectedListingId} selectionRevision={selectionRevision} onSelect={selectRankedListing} />}
     </div>
     <aside ref={sidebarElement} className="explorer-sidebar" aria-label="Controls and information"
@@ -212,11 +285,12 @@ export default function Explorer() {
       }}>
       <div className="segmented explorer-sidebar-tabs" role="group" aria-label="Sidebar view">
         <button type="button" aria-pressed={sidebar === 'listings'} onClick={() => setSidebar('listings')}>Filters &amp; Details</button>
-        <button type="button" aria-pressed={sidebar === 'positioning'} onClick={() => { setPositioningOpened(true); setSidebar('positioning'); }}>Positioning</button>
-        <button type="button" aria-pressed={sidebar === 'clustering'} onClick={() => { setClusteringOpened(true); setHoveredDistrict(null); setView('map'); setSidebar('clustering'); }}>Clustering</button>
+        <button type="button" aria-pressed={positioningActive} onClick={() => { setHoveredListingId(null); setPositioningOpened(true); setSidebar('positioning'); setShowListings(true); setView('map'); }}>Positioning</button>
+        <button type="button" aria-pressed={sidebar === 'clustering'} onClick={() => { setHoveredListingId(null); setClusteringOpened(true); setHoveredDistrict(null); setView('map'); setSidebar('clustering'); }}>Clustering</button>
       </div>
       {positioningOpened && <div hidden={sidebar !== 'positioning'}>
-        <PropertyPositioning roomTypes={roomTypes} onSelect={selectComparable} selectedListingId={selectedListingId}
+        <PropertyPositioning roomTypes={roomTypes} onSelect={toggleComparable} comparisonIds={comparisonIds}
+          positioning={positioning} onCalculate={(input, count) => { setComparison([]); setShowListings(true); positioning.calculate(input, count); }}
           district={positioningDistrict} onDistrict={setPositioningDistrict} amenities={amenities}
           onRetryAmenities={() => { setAmenities({ status: 'loading' }); setAmenityRevision(value => value + 1); }} />
       </div>}

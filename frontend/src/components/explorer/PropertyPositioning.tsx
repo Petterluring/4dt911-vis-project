@@ -1,36 +1,35 @@
-import { useEffect, useMemo, useState } from 'react';
-import { bin, median } from 'd3';
-import { fetchComparables, fetchPrediction } from '../../api/positioning';
+import { useMemo, useState } from 'react';
+import { median } from 'd3';
 import type { PropertyInput } from '../../api/positioning';
+import type { usePositioning } from '../../hooks/usePositioning';
 import { DISTRICTS } from '../../interfaces/explorer';
 import type { District, ListingLocation, Resource } from '../../interfaces/explorer';
-import { formatNumber } from '../../utils/explorer';
+import { CHART_COLORS, formatNumber } from '../../utils/explorer';
+import { MAX_COMPARABLE_LISTINGS } from '../../utils/listing';
 import { compareOptionalNumbers } from '../../utils/ranking';
 import type { SortDirection } from '../../utils/ranking';
 
-type Comparables = Awaited<ReturnType<typeof fetchComparables>>;
+type Positioning = ReturnType<typeof usePositioning>;
 const sortableColumns = [
   { key: 'price', label: 'SEK' }, { key: 'similarity', label: 'Match' },
   { key: 'rating', label: 'Rating' }, { key: 'guests', label: 'Guests' },
 ] as const;
 type ComparableSortKey = typeof sortableColumns[number]['key'];
-type Prediction = Awaited<ReturnType<typeof fetchPrediction>>;
+type Prediction = NonNullable<NonNullable<Positioning['prediction']>['data']>;
 const initial: Omit<PropertyInput, 'district'> = {
   room_type: 'Private room', accommodates: 2, bedrooms: 1, beds: 1, amenities: [],
 };
 
-type PriceBins = ReturnType<typeof priceBins>;
-function priceBins(rows: Comparables) {
-  return bin<Comparables[number], number>().value(row => row.price ?? NaN).thresholds(8)(rows);
-}
-
-function PriceHistogram({ bins, active, onSelect }: { bins: PriceBins; active: number | null; onSelect: (index: number) => void }) {
+function PriceHistogram({ bins, active, highlightedCount, onSelect }: {
+  bins: Positioning['priceBins']; active: ReadonlySet<number>; highlightedCount: number; onSelect: (index: number) => void;
+}) {
   const max = Math.max(...bins.map(bucket => bucket.length), 1);
   const minimum = bins[0].x0 ?? 0, maximum = bins[bins.length - 1].x1 ?? minimum;
   const span = maximum - minimum;
   return <figure className="positioning-histogram">
     <figcaption>Comparable nightly prices (SEK)</figcaption>
-    <p>{active == null ? 'Select a bar to highlight its listings.' : bins[active].length + ' listings highlighted. Select the bar again to clear.'}</p>
+    <p>{active.size ? `${highlightedCount} listings across ${active.size} selected price ${active.size === 1 ? 'range' : 'ranges'}.`
+      : 'Select one or more bars to highlight listings on the map and in the table.'}</p>
     <svg viewBox="0 0 280 76" role="group" aria-label="Histogram of comparable nightly prices">
       {bins.map((bucket, index) => {
         if (!bucket.length) return null;
@@ -39,7 +38,8 @@ function PriceHistogram({ bins, active, onSelect }: { bins: PriceBins; active: n
         const width = span ? 280 * ((bucket.x1 ?? maximum) - (bucket.x0 ?? minimum)) / span : 280;
         const label = formatNumber(bucket.x0) + ' to ' + formatNumber(bucket.x1) + ' SEK: ' + bucket.length + ' listings';
         return <rect key={index} x={x} y={76 - height} width={Math.max(1, width - 2)} height={height}
-          role="button" tabIndex={0} aria-label={label} aria-pressed={active === index} onClick={() => onSelect(index)}
+          style={active.has(index) ? { fill: CHART_COLORS.priceRange } : undefined}
+          role="button" tabIndex={0} aria-label={label} aria-pressed={active.has(index)} onClick={() => onSelect(index)}
           onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSelect(index); } }}>
           <title>{label}</title>
         </rect>;
@@ -86,44 +86,25 @@ function ContributionStar({ contributions }: { contributions: Prediction['contri
   </figure>;
 }
 
-export default function PropertyPositioning({ roomTypes, onSelect, selectedListingId, district, onDistrict, amenities, onRetryAmenities }: {
+export default function PropertyPositioning({ roomTypes, onSelect, comparisonIds, district, onDistrict, amenities, onRetryAmenities, positioning, onCalculate }: {
   roomTypes: string[];
   onSelect: (listing: ListingLocation) => void;
-  selectedListingId: string | null;
+  comparisonIds: ReadonlySet<string>;
   district: District;
   onDistrict: (district: District) => void;
   amenities: Resource<string[]>;
   onRetryAmenities: () => void;
+  positioning: Positioning;
+  onCalculate: Positioning['calculate'];
 }) {
   const [draft, setDraft] = useState(initial);
   const input = useMemo(() => ({ ...draft, district }), [draft, district]);
   const [sort, setSort] = useState<{ key: ComparableSortKey; direction: SortDirection }>({ key: 'similarity', direction: 'desc' });
-  const [activeBin, setActiveBin] = useState<number | null>(null);
   const [count, setCount] = useState(20);
   const [search, setSearch] = useState('');
-  const [submitted, setSubmitted] = useState<{ input: PropertyInput; count: number } | null>(null);
-  const [comparables, setComparables] = useState<Resource<Comparables> | null>(null);
-  const [prediction, setPrediction] = useState<Resource<Prediction> | null>(null);
-  useEffect(() => {
-    if (!submitted) return;
-    const request = new AbortController();
-    void fetchComparables(submitted.input, submitted.count, request.signal).then(data => {
-      if (!request.signal.aborted) setComparables({ status: 'success', data });
-    }).catch(() => {
-      if (!request.signal.aborted) setComparables({ status: 'error', error: 'Comparable listings could not be loaded.' });
-    });
-    void fetchPrediction(submitted.input, request.signal).then(data => {
-      if (!request.signal.aborted) setPrediction({ status: 'success', data });
-    }).catch((error: unknown) => {
-      if (!request.signal.aborted) setPrediction({ status: 'error', error: error instanceof Error ? error.message : 'Prediction unavailable.' });
-    });
-    return () => request.abort();
-  }, [submitted]);
+  const { submitted, comparables, prediction, priceBins, activePriceBins, highlightedPriceIds, togglePriceBin } = positioning;
   function calculate() {
-    setActiveBin(null);
-    setComparables({ status: 'loading' });
-    setPrediction({ status: 'loading' });
-    setSubmitted({ input, count });
+    onCalculate(input, count);
   }
   function change<K extends keyof typeof initial>(key: K, value: typeof initial[K]) {
     setDraft(current => current[key] === value ? current : { ...current, [key]: value });
@@ -138,8 +119,6 @@ export default function PropertyPositioning({ roomTypes, onSelect, selectedListi
   const prices = (comparables?.data ?? []).flatMap(item => item.price == null ? [] : [item.price]);
   const typical = median(prices) ?? null;
   const contributions = prediction?.data?.contributions ?? [];
-  const bins = useMemo(() => priceBins(comparables?.data ?? []), [comparables?.data]);
-  const highlighted = new Set(activeBin == null ? [] : bins[activeBin]?.map(item => item.id));
   const hasEdits = submitted !== null && (submitted.input !== input || submitted.count !== count);
   const loading = comparables?.status === 'loading' || prediction?.status === 'loading';
   return <section className="positioning panel" aria-labelledby="positioning-title">
@@ -193,7 +172,7 @@ export default function PropertyPositioning({ roomTypes, onSelect, selectedListi
       {prediction.data.baseline != null && <p>Model baseline: {formatNumber(prediction.data.baseline)} SEK</p>}
       {contributions.length ? <ContributionStar contributions={contributions} /> : <p>No feature contributions were returned by the model.</p>}
     </section>}
-    {prices.length > 0 && <PriceHistogram bins={bins} active={activeBin} onSelect={index => setActiveBin(current => current === index ? null : index)} />}
+    {prices.length > 0 && <PriceHistogram bins={priceBins} active={activePriceBins} highlightedCount={highlightedPriceIds?.size ?? 0} onSelect={togglePriceBin} />}
     <h3>Comparable listings</h3>
     {comparables?.status === 'loading' && <p role="status">Finding comparable listings…</p>}
     {comparables?.status === 'success' && (!comparables.data.length ? <p>No comparable listings found.</p> :
@@ -206,8 +185,9 @@ export default function PropertyPositioning({ roomTypes, onSelect, selectedListi
             {label}<span aria-hidden="true">{sort.key === key ? sort.direction === 'asc' ? ' ↑' : ' ↓' : ' ↕'}</span>
           </button>
         </th>)}</tr></thead>
-        <tbody>{sortedComparables.map(row => <tr key={row.id} className={highlighted.has(row.id) ? 'positioning-row--highlighted' : undefined} aria-current={row.id === selectedListingId ? 'true' : undefined}>
-          <th scope="row">{row.listing ? <button type="button" className="text-button" onClick={() => onSelect(row.listing!)}>{row.name}</button> : row.name}</th>
+        <tbody>{sortedComparables.map(({ listing, ...row }) => <tr key={row.id} className={highlightedPriceIds?.has(row.id) ? 'positioning-row--highlighted' : undefined}>
+          <th scope="row">{listing ? <button type="button" className="text-button comparable-toggle" aria-pressed={comparisonIds.has(row.id)}
+            disabled={comparisonIds.size >= MAX_COMPARABLE_LISTINGS && !comparisonIds.has(row.id)} onClick={() => onSelect(listing)}>{row.name}</button> : row.name}</th>
           <td>{formatNumber(row.price)}</td><td>{row.similarity == null ? 'N/A' : Math.round(row.similarity * 100) + '%'}</td>
           <td>{row.rating?.toFixed(2) ?? 'N/A'}</td><td>{formatNumber(row.guests)}</td>
         </tr>)}</tbody>
