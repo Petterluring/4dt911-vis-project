@@ -3,6 +3,7 @@ import { fetchListingAmenities, fetchPrediction } from '../../api/positioning';
 import type { PropertyInput } from '../../api/positioning';
 import type { ListingLocation, Resource } from '../../interfaces/explorer';
 import { formatNumber } from '../../utils/explorer';
+import { MAX_COMPARABLE_LISTINGS } from '../../utils/listing';
 
 const attributes = [
   ['district', 'District'], ['room_type', 'Room type'], ['accommodates', 'Guests'],
@@ -49,15 +50,14 @@ export default function PropertyComparison({ input, prediction, listings, onRemo
     <header>
       <h2 id="property-comparison-title">Property comparison</h2>
       <p>{!input ? 'Calculate a hypothetical property to find comparable Airbnbs.'
-        : listings.length === 2 ? '2 of 2 selected. Remove a listing to compare another.'
-          : 'Select up to two comparables from the map or the results list.'}</p>
+          : listings.length === MAX_COMPARABLE_LISTINGS ? `${listings.length} of ${MAX_COMPARABLE_LISTINGS} selected. Remove a listing to compare another.`
+          : `Select up to ${MAX_COMPARABLE_LISTINGS} comparables from the map or the results list.`}</p>
     </header>
-    {input && <div className="property-comparison__scroll" tabIndex={0} role="region" aria-label="Property comparison table">
-      <table>
+    {input && <table aria-label="Property comparison table">
         <thead><tr>
           <th scope="col">Property</th><th scope="col">Hypothetical listing</th>
           {listings.map(listing => <th key={listing.id} scope="col">
-            <span>{listing.name ?? 'Listing #' + listing.id}</span>
+            <span className="property-comparison__name" title={listing.name ?? 'Listing #' + listing.id}>{listing.name ?? 'Listing #' + listing.id}</span>
             <button className="text-button" type="button" onClick={() => onRemove(listing)}
               aria-label={'Remove ' + (listing.name ?? 'listing #' + listing.id)}>Remove</button>
           </th>)}
@@ -79,7 +79,6 @@ export default function PropertyComparison({ input, prediction, listings, onRemo
             </td>)}
           </tr>)}
         </tbody>
-      </table>
-    </div>}
+    </table>}
   </section>;
 }

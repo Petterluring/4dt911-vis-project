@@ -11,12 +11,12 @@ export function usePositioning() {
   const [submitted, setSubmitted] = useState<{ input: PropertyInput; count: number } | null>(null);
   const [comparables, setComparables] = useState<Resource<Comparables> | null>(null);
   const [prediction, setPrediction] = useState<Resource<Prediction> | null>(null);
-  const [activePriceBin, setActivePriceBin] = useState<number | null>(null);
+  const [activePriceBins, setActivePriceBins] = useState<ReadonlySet<number>>(() => new Set());
   const priceBins = useMemo(() => bin<Comparables[number], number>()
     .value(row => row.price ?? NaN).thresholds(8)(comparables?.data ?? []), [comparables?.data]);
-  const activeBucket = activePriceBin == null ? undefined : priceBins[activePriceBin];
-  const highlightedPriceIds = useMemo(() => activeBucket?.length
-    ? new Set(activeBucket.map(row => row.id)) : null, [activeBucket]);
+  const highlightedPriceIds = useMemo(() => activePriceBins.size
+    ? new Set([...activePriceBins].flatMap(index => (priceBins[index] ?? []).map(row => row.id)))
+    : null, [activePriceBins, priceBins]);
 
   useEffect(() => {
     if (!submitted) return;
@@ -35,19 +35,23 @@ export function usePositioning() {
   }, [submitted]);
 
   function calculate(input: PropertyInput, count: number) {
-    setActivePriceBin(null);
+    setActivePriceBins(new Set());
     setComparables({ status: 'loading' });
     setPrediction({ status: 'loading' });
     setSubmitted({ input, count });
   }
 
   function togglePriceBin(index: number) {
-    setActivePriceBin(current => current === index ? null : index);
+    setActivePriceBins(current => {
+      const next = new Set(current);
+      if (!next.delete(index)) next.add(index);
+      return next;
+    });
   }
 
   function clearPriceBin() {
-    setActivePriceBin(null);
+    setActivePriceBins(new Set());
   }
 
-  return { submitted, comparables, prediction, calculate, priceBins, activePriceBin, highlightedPriceIds, togglePriceBin, clearPriceBin };
+  return { submitted, comparables, prediction, calculate, priceBins, activePriceBins, highlightedPriceIds, togglePriceBin, clearPriceBin };
 }
