@@ -18,7 +18,8 @@ import ListingRanking from '../components/explorer/ListingRanking';
 import ComparisonPanel from '../components/explorer/ComparisonPanel';
 import type { ListingChartScope, PriceChartView } from '../components/explorer/ComparisonPanel';
 import { listingInBounds } from '../utils/map';
-import { listingsForPriceChart } from '../utils/listing';
+import { listingsForPriceChart, MAX_COMPARABLE_LISTINGS } from '../utils/listing';
+import type { ListingChartAxis } from '../utils/listing';
 import './Explorer.css';
 import ListingClusters from '../components/clustering/ListingClusters';
 import ClusterPricePanel from '../components/clustering/ClusterPricePanel';
@@ -27,6 +28,8 @@ import { EMPTY_FILTERS, filterListings } from '../utils/ranking';
 import type { ListingFilters } from '../utils/ranking';
 const EMPTY_LISTINGS: ListingLocation[] = [];
 const ignoreDistrictHover = () => {};
+const HOUSING_LISTING_COLOR = '#374151';
+const housingListingColor = () => HOUSING_LISTING_COLOR;
 export default function Explorer() {
   const [view, setView] = useState<'map' | 'listings'>('map');
   const [sidebar, setSidebar] = useState<'listings' | 'positioning' | 'clustering'>('listings');
@@ -44,6 +47,7 @@ export default function Explorer() {
   const [metric, setMetric] = useState<PriceMetric>('median_airbnb_price');
   const [mode, setMode] = useState<PriceMode>('median');
   const [priceChartView, setPriceChartView] = useState<PriceChartView>('districts');
+  const [listingChartAxes, setListingChartAxes] = useState<[ListingChartAxis, ListingChartAxis]>(['beds', 'accommodates']);
   const [listingChartScope, setListingChartScope] = useState<ListingChartScope>('map');
   const [mapBounds, setMapBounds] = useState<MapBounds | null>(null);
   const [hoveredListingId, setHoveredListingId] = useState<string | null>(null);
@@ -80,12 +84,19 @@ export default function Explorer() {
   const rankedListings = useMemo(() => groupIds ? listings.filter(listing => groupIds.has(listing.id)) : listings, [listings, groupIds]);
   const listingChartActive = view === 'map' && sidebar === 'listings' && priceChartView === 'listings';
   const chartBounds = listingChartScope === 'map' ? mapBounds : null;
-  const chartValues = useMemo(() => listingChartActive && (listingChartScope === 'all' || chartBounds)
-    ? listingsForPriceChart(rankedListings, chartBounds) : [], [listingChartActive, listingChartScope, rankedListings, chartBounds]);
-  const linkedListings = useMemo(() => listingChartActive ? chartValues.map(point => point.listing) : undefined, [listingChartActive, chartValues]);
+  const chartValues = useMemo(() => {
+    if (!listingChartActive || (listingChartScope === 'map' && !chartBounds)) return [[], []] as const;
+    return [
+      listingsForPriceChart(rankedListings, chartBounds, listingChartAxes[0]),
+      listingsForPriceChart(rankedListings, chartBounds, listingChartAxes[1]),
+    ] as const;
+  }, [listingChartActive, listingChartScope, rankedListings, chartBounds, listingChartAxes]);
+  const linkedListings = useMemo(() => listingChartActive
+    ? Array.from(new Map(chartValues.flatMap(points => points.map(({ listing }) => [listing.id, listing] as const))).values())
+    : undefined, [listingChartActive, chartValues]);
   const listingChartMessage = data.listings.status === 'loading' ? 'Loading listings.'
     : data.listings.error ?? (listingChartScope === 'map' && !mapBounds ? 'The map view is unavailable. Try All filtered.'
-      : 'No listings with guest capacity and a nightly price match this view.');
+      : 'No listings with complete data for these axes match this view.');
   function selectGroup(ids: string[], add: boolean) {
     setSidebar('listings');
     setGroupIds(previous => new Set(add && previous ? [...previous, ...ids] : ids));
@@ -129,7 +140,7 @@ export default function Explorer() {
   function toggleComparable(listing: ListingLocation) {
     setComparison(current => {
       if (current.some(item => item.id === listing.id)) return current.filter(item => item.id !== listing.id);
-      return current.length < 2 ? [...current, listing] : current;
+      return current.length < MAX_COMPARABLE_LISTINGS ? [...current, listing] : current;
     });
     setShowListings(true);
   }
@@ -150,6 +161,7 @@ export default function Explorer() {
     ? highlightedPriceIds : null, [highlightedPriceIds, mapListings]);
   const scale = useMemo(() => metricScale(data.prices.data ?? [], metric), [data.prices.data, metric]);
   const listingScale = useMemo(() => listingPriceScale(allListings.length ? allListings : comparableListings), [allListings, comparableListings]);
+  const showListingPriceScale = metric === 'median_airbnb_price' || metric === 'average_airbnb_price';
   const districtLegend = showDistricts && !(showListings && detailZoom);
   const activeDistrict = showDistricts ? (view === 'map' ? hoveredDistrict : null) ?? selectedDistrict : null;
   const errors = [data.geometry, data.prices, data.tooltips, data.listings, data.scatterplots].some(resource => resource.status === 'error');
@@ -184,7 +196,8 @@ export default function Explorer() {
             onSelectGroup={!clusteringActive && data.listings.status === 'success' ? selectGroup : undefined}
             metric={metric} selectedDistrict={clusteringActive ? null : selectedDistrict} hoveredDistrict={clusteringActive ? null : hoveredDistrict}
             showListings={clusteringActive || showListings} showBasemap={basemapVisible} showDistricts={!clusteringActive && showDistricts} focusRequest={focusRequest}
-            listingColor={clusteringActive ? clustering.listingColor : undefined} highlightedListingIds={clusteringActive ? clustering.highlightedIds : undefined}
+            listingColor={clusteringActive ? clustering.listingColor : showListingPriceScale ? undefined : housingListingColor}
+            highlightedListingIds={clusteringActive ? clustering.highlightedIds : undefined}
             searchArea={clusteringActive ? clustering.searchArea : undefined}
             onHover={clusteringActive ? ignoreDistrictHover : setHoveredDistrict} onSelect={district => { selectDistrict(district); setSidebar(current => current === 'positioning' ? current : 'listings'); }}
             selectedListingId={clusteringActive ? clustering.mapSelectedListingId : positioningActive ? null : selectedListingId}
@@ -195,8 +208,8 @@ export default function Explorer() {
           <details className="map-controls panel" hidden={clusteringActive}>
             <summary>Map settings</summary>
             <div className="map-controls__body">
-              <label className="control-label" htmlFor="map-metric">Colour districts by</label>
-              <select id="map-metric" disabled={!showDistricts} value={metric} onChange={event => setMetric(event.target.value as PriceMetric)}>
+              <label className="control-label" htmlFor="map-metric">Colour map by</label>
+              <select id="map-metric" disabled={!showDistricts && !showListings} value={metric} onChange={event => setMetric(event.target.value as PriceMetric)}>
                 {Object.entries(METRICS).map(([value, definition]) => <option key={value} value={value}>{definition.label}</option>)}
               </select>
               <p className="metric-unit">{METRICS[metric].unit} · Linear colour scale</p>
@@ -211,7 +224,7 @@ export default function Explorer() {
                 <label><input type="checkbox" checked={showListings} onChange={event => {
                   setShowListings(event.target.checked);
                   if (!event.target.checked) { setSelectedListingId(null); setFocusRequest(null); }
-                }} /><span>Airbnb locations</span><span className="listing-key" /></label>
+                }} /><span>Airbnb locations</span><span className="listing-key" style={showListingPriceScale ? undefined : { backgroundColor: HOUSING_LISTING_COLOR }} /></label>
                 <label><input type="checkbox" checked={basemapVisible} onChange={event => setBasemapVisible(event.target.checked)} /><span>Basemap</span></label>
                 <label><input type="checkbox" checked={showDistricts} onChange={event => toggleDistricts(event.target.checked)} /><span>Districts</span></label>
               </div>
@@ -227,6 +240,7 @@ export default function Explorer() {
               : scale.min == null ? <p>No price data available.</p> : <><div className="legend-gradient" /><div className="legend-labels"><span>{formatNumber(scale.min)}</span><span>{formatNumber(scale.max)}</span></div></>}
             <p><span className="missing-key" /> No data <span className="selected-key" /> Selected district</p></>}
             {showListings && <section className={districtLegend ? 'listing-legend listing-legend--separated' : 'listing-legend'} aria-label="Listing colours">
+              {showListingPriceScale ? <>
               <div><strong>Listing nightly price</strong><span>SEK / night</span></div>
               {listingScale.stops.length > 1 ? <>
                 <div className="legend-gradient" style={{
@@ -239,9 +253,11 @@ export default function Explorer() {
                 <span className="listing-legend-swatch" style={{ backgroundColor: listingScale.stops[0].color }} />
                 {formatNumber(listingScale.stops[0].value)} (display range)
               </p> : <p>No listing price data available.</p>}
-              <p><span className="missing-key listing-missing-key" /> No data <span className="selected-key listing-selected-key" /> {comparableIds ? 'In comparison' : 'Selected listing'}</p>
+              </> : <p><span className="listing-legend-swatch" style={{ backgroundColor: HOUSING_LISTING_COLOR }} /> Airbnb listing</p>}
+              <p>{showListingPriceScale && <><span className="missing-key listing-missing-key" /> No data</>}
+                <span className="selected-key listing-selected-key" /> {comparableIds ? 'In comparison' : 'Selected listing'}</p>
               {comparableIds && !histogramMapIds && <p><span className="comparable-key" /> Comparable listing</p>}
-              {histogramMapIds && <p><span className="comparable-key" style={{ borderColor: CHART_COLORS.priceRange }} /> Selected price range</p>}
+              {histogramMapIds && <p><span className="comparable-key" style={{ borderColor: CHART_COLORS.priceRange }} /> Selected price ranges</p>}
             </section>}
           </div>}
           {clusteringActive && <ClusterMapLegend state={clustering} />}
@@ -249,9 +265,13 @@ export default function Explorer() {
         {view === 'map' && !positioningActive && (clusteringActive ? <ClusterPricePanel state={clustering} />
           : <ComparisonPanel resource={data.scatterplots} mode={mode} onMode={setMode} selectedDistrict={selectedDistrict}
             hoveredDistrict={hoveredDistrict} onHover={setHoveredDistrict} onSelect={selectDistrict}
-            listingChart={{ view: priceChartView, scope: listingChartScope, values: chartValues, emptyMessage: listingChartMessage,
+            listingChart={{ view: priceChartView, scope: listingChartScope, axes: listingChartAxes, values: chartValues, emptyMessage: listingChartMessage,
               onView: next => { setHoveredListingId(null); setPriceChartView(next); },
               onScope: next => { setHoveredListingId(null); setListingChartScope(next); },
+              onAxis: (index, axis) => {
+                setHoveredListingId(null);
+                setListingChartAxes(current => index === 0 ? [axis, current[1]] : [current[0], axis]);
+              },
               hoveredId: hoveredListingId, selectedId: selectedListingId, onHover: setHoveredListingId, onSelect: selectChartListing }} />)}
         {positioningOpened && <PropertyComparison hidden={!positioningActive || view !== 'map'} listings={comparison}
           input={positioning.submitted?.input ?? null} prediction={positioning.prediction} onRemove={toggleComparable} />}

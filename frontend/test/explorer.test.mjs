@@ -106,28 +106,57 @@ test('comparison markup retains real zero scores, selection, missing counts and 
   assert.match(html, /Tourism score/);
 });
 
+test('listing beeswarm separates ties without moving prices or hover and selection rings', async () => {
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { default: Scatterplot } = await server.ssrLoadModule('/src/components/explorer/Scatterplot.tsx');
+  const points = ['1', '2', '3'].map(id => ({ id, label: 'Listing ' + id, x: 0, y: 1200 }));
+  const props = {
+    id: 'beeswarm', title: 'Listing prices', kind: 'listing', subtitle: 'Example', points,
+    xLabel: 'Bedrooms', yLabel: 'Nightly price (SEK)', integerX: true, xFromZero: true,
+    hoveredId: '2', selectedId: '3', onHover() {}, onSelect() {},
+  };
+  const markup = renderToStaticMarkup(createElement(Scatterplot, { ...props, beeswarm: true }));
+  const marks = [...markup.matchAll(/<circle cx="([^"]+)" cy="([^"]+)" r="3"/g)].map(match => match.slice(1));
+  assert.equal(marks.length, 3);
+  assert.equal(new Set(marks.map(([x]) => x)).size, 3);
+  assert.equal(new Set(marks.map(([, y]) => y)).size, 1);
+  assert.ok(marks.every(([x]) => Number(x) >= 58));
+  assert.ok(markup.includes(`cx="${marks[1][0]}" cy="${marks[1][1]}" r="7"`));
+  assert.ok(markup.includes(`cx="${marks[2][0]}" cy="${marks[2][1]}" r="5"`));
+  const plain = renderToStaticMarkup(createElement(Scatterplot, props));
+  const plainMarks = [...plain.matchAll(/<circle cx="([^"]+)" cy="([^"]+)" r="3"/g)].map(match => match.slice(1));
+  assert.equal(new Set(plainMarks.map(([x]) => x)).size, 1);
+  assert.equal(marks[0][1], plainMarks[0][1]);
+});
+
 test('listing chart uses the map viewport and skips listings with incomplete axes', async () => {
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const { default: ComparisonPanel } = await server.ssrLoadModule('/src/components/explorer/ComparisonPanel.tsx');
   const { listingsForPriceChart } = await server.ssrLoadModule('/src/utils/listing.ts');
-  const inside = { id: '9007199254740993', name: 'Studio', longitude: 18.01, latitude: 59.33, accommodates: 2, price: 0 };
+  const inside = { id: '9007199254740993', name: 'Studio', longitude: 18.01, latitude: 59.33, accommodates: 2, beds: 1, price: 0 };
   const outside = { ...inside, id: '2', longitude: 18.20 };
   const incomplete = { ...inside, id: '3', accommodates: null };
   const bounds = [map.project(18.00, 59.34), map.project(18.02, 59.32)];
-  const values = listingsForPriceChart([inside, outside, incomplete], bounds);
-  assert.deepEqual(values.map(point => [point.listing.id, point.guests, point.price]), [[inside.id, 2, 0]]);
-  assert.equal(listingsForPriceChart([inside, outside, incomplete], null).length, 2);
+  const guests = listingsForPriceChart([inside, outside, incomplete], bounds, 'accommodates');
+  const beds = listingsForPriceChart([inside, outside, incomplete], bounds, 'beds');
+  assert.deepEqual(guests.map(point => [point.listing.id, point.x, point.price]), [[inside.id, 2, 0]]);
+  assert.equal(beds.length, 2);
+  assert.equal(listingsForPriceChart([inside, outside, incomplete], null, 'accommodates').length, 2);
 
   const html = renderToStaticMarkup(createElement(ComparisonPanel, {
     resource: { status: 'loading' }, mode: 'median', selectedDistrict: null, hoveredDistrict: null,
     onMode() {}, onHover() {}, onSelect() {},
     listingChart: {
-      view: 'listings', scope: 'map', values, hoveredId: inside.id, selectedId: null,
-      onView() {}, onScope() {}, onHover() {}, onSelect() {},
+      view: 'listings', scope: 'map', axes: ['beds', 'accommodates'], values: [beds, guests],
+      hoveredId: inside.id, selectedId: null, onView() {}, onScope() {}, onAxis() {}, onHover() {}, onSelect() {},
     },
   }));
-  assert.match(html, /Tourism score|Tourism &amp; Airbnb supply/);
+  assert.doesNotMatch(html, /Tourism &amp; Airbnb supply/);
+  assert.equal((html.match(/aria-label="Listing prices"/g) ?? []).length, 2);
+  assert.match(html, /aria-label="Left listing chart X-axis"/);
+  assert.match(html, /aria-label="Right listing chart X-axis"/);
   assert.match(html, /Nightly price \(SEK\): 0/);
   const guestTicks = [...html.matchAll(/class="chart-tick"[^>]*text-anchor="middle">([^<]+)<\/text>/g)].map(tick => tick[1]);
   assert.equal(guestTicks[0], '0');
@@ -325,7 +354,32 @@ test('dashboard starts in map view with shared filters and both scatterplots', a
   assert.doesNotMatch(html, /Compare districts|Close district comparison/);
 });
 
-test('positioning comparison shows two listings with separate predicted and listed price rows', async () => {
+test('positioning marks multiple histogram ranges and keeps selected comparables removable at the limit', async () => {
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { bin } = await import('d3');
+  const { default: PropertyPositioning } = await server.ssrLoadModule('/src/components/explorer/PropertyPositioning.tsx');
+  const input = { district: 'Bromma', room_type: 'Private room', accommodates: 2, bedrooms: 1, beds: 1, amenities: [] };
+  const comparables = [700, 1400, 2600, 3600, 5500].map((price, index) => {
+    const id = String(index + 1);
+    return { id, price, name: 'Listing ' + id, listing: { id }, similarity: 1 - index / 10 };
+  });
+  const priceBins = bin().value(row => row.price).thresholds(8)(comparables);
+  const selected = priceBins.map((bucket, index) => bucket.some(row => row.id === '1' || row.id === '5') ? index : -1).filter(index => index >= 0);
+  const html = renderToStaticMarkup(createElement(PropertyPositioning, {
+    district: input.district, roomTypes: ['Private room'], amenities: { status: 'success', data: [] },
+    comparisonIds: new Set(['1', '2', '3', '4']), onSelect() {}, onDistrict() {}, onRetryAmenities() {}, onCalculate() {},
+    positioning: {
+      submitted: { input, count: 20 }, comparables: { status: 'success', data: comparables },
+      prediction: null, priceBins, activePriceBins: new Set(selected), highlightedPriceIds: new Set(['1', '5']), togglePriceBin() {},
+    },
+  }));
+  assert.equal((html.match(/<rect[^>]*aria-pressed="true"/g) ?? []).length, 2);
+  assert.equal((html.match(/class="positioning-row--highlighted"/g) ?? []).length, 2);
+  assert.equal((html.match(/class="text-button comparable-toggle"[^>]*disabled=""/g) ?? []).length, 1);
+});
+
+test('positioning comparison shows four listings and the hypothetical without a scroll container', async () => {
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const { default: PropertyComparison } = await server.ssrLoadModule('/src/components/explorer/PropertyComparison.tsx');
@@ -333,9 +387,12 @@ test('positioning comparison shows two listings with separate predicted and list
   const first = { ...input, id: '1', name: 'Studio', bedrooms: 0, price: 950 };
   const second = { ...input, id: '2', name: 'Private room in Bromma', price: null };
   const html = renderToStaticMarkup(createElement(PropertyComparison, {
-    input, listings: [first, second], prediction: { status: 'success', data: { price: 1500 } }, onRemove() {}, hidden: false,
+    input, listings: [first, second, { ...first, id: '3' }, { ...second, id: '4' }],
+    prediction: { status: 'success', data: { price: 1500 } }, onRemove() {}, hidden: false,
   }));
-  assert.match(html, /2 of 2 selected/);
+  assert.match(html, /4 of 4 selected/);
+  assert.equal((html.match(/<th scope="col">/g) ?? []).length, 6);
+  assert.doesNotMatch(html, /property-comparison__scroll/);
   assert.match(html, /Predicted nightly price/);
   assert.match(html, /Listed nightly price/);
   assert.match(html, /950 SEK/);
