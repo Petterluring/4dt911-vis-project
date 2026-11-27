@@ -83,6 +83,17 @@ test('Web Mercator aligns district coordinates and tiles', () => {
   assert.ok(tiles.every(tile => tile.z === 10 && tile.x >= 0 && tile.y >= 0));
 });
 
+test('resizing preserves map zoom and the geographic center', () => {
+  const before = zoomIdentity.translate(-100000, -50000).scale(1024);
+  const oldSize = { width: 1200, height: 800 };
+  const newSize = { width: 900, height: 1100 };
+  const after = map.resizedTransform(before, oldSize, newSize);
+  assert.equal(after.k, before.k);
+  assert.deepEqual(after.invert([newSize.width / 2, newSize.height / 2]),
+    before.invert([oldSize.width / 2, oldSize.height / 2]));
+  assert.deepEqual(map.resizedTransform(after, newSize, oldSize), before);
+});
+
 
 test('comparison markup retains real zero scores, selection, missing counts and price units', async () => {
   const { createElement } = await import('react');
