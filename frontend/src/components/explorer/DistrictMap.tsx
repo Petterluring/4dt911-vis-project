@@ -7,7 +7,7 @@ import type { District, DistrictGeometry, DistrictPrices, ListingLocation, Price
 import type { LocationSearchArea } from '../../interfaces/location';
 import { formatDistance, radiusGeometry } from '../../utils/location';
 import { CHART_COLORS, listingPriceScale, metricScale } from '../../utils/explorer';
-import { districtPath, fittedTransform, focusedAreaTransform, focusedListingTransform, project, screenDistrictPath, visibleTiles } from '../../utils/map';
+import { districtPath, fittedTransform, focusedAreaTransform, focusedListingTransform, project, resizedTransform, screenDistrictPath, visibleTiles } from '../../utils/map';
 import { MAP_CLICK_DISTANCE, markerRadii, canSelectListings, movedBeyondClick, nearestListing } from '../../utils/listing';
 import { listingsInLasso, listingsInRectangle, selectionBounds } from '../../utils/selection';
 import type { Point } from '../../utils/selection';
@@ -53,7 +53,9 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   const canvas = useRef<HTMLCanvasElement>(null);
   const zoomBehavior = useRef<ZoomBehavior<SVGSVGElement, unknown> | null>(null);
   const gesture = useRef({ start: [0, 0] as [number, number], moved: false, active: false });
-  const previousSearch = useRef<{ area: LocationSearchArea | null; width: number; height: number; geometry: DistrictGeometry } | null>(null);
+  const previousViewport = useRef<{ width: number; height: number; geometry: DistrictGeometry } | null>(null);
+  const previousFocus = useRef<ListingFocusRequest | null>(null);
+  const previousSearch = useRef<{ area: LocationSearchArea | null; geometry: DistrictGeometry } | null>(null);
   const [size, setSize] = useState({ width: 1200, height: 800 });
   const [transform, setTransform] = useState(zoomIdentity);
   const [selectionTool, setSelectionTool] = useState<SelectionTool | null>(null);
@@ -108,12 +110,20 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
       });
     element.call(behavior).on('dblclick.zoom', null);
     zoomBehavior.current = behavior;
-    element.call(behavior.transform, fittedTransform(geometry, size.width, size.height));
+    const previous = previousViewport.current;
+    previousViewport.current = { ...size, geometry };
+    const nextTransform = !previous || previous.geometry !== geometry
+      ? fittedTransform(geometry, size.width, size.height)
+      : resizedTransform(zoomTransform(svg.current), previous, size);
+    element.call(behavior.transform, nextTransform);
     return () => { element.on('.zoom', null); zoomBehavior.current = null; };
   }, [geometry, size, onViewportChange]);
   useEffect(() => {
     const element = svg.current, behavior = zoomBehavior.current;
-    if (!element || !behavior || !focusRequest) return;
+    if (!element || !behavior) return;
+    const previous = previousFocus.current;
+    previousFocus.current = focusRequest ?? null;
+    if (!focusRequest || focusRequest === previous) return;
     select(element).call(behavior.transform, focusedListingTransform(
       focusRequest.listing, size.width, size.height, zoomTransform(element).k,
     ));
@@ -121,12 +131,12 @@ export default function DistrictMap({ geometry, prices, listings, metric, select
   useEffect(() => {
     const element = svg.current, behavior = zoomBehavior.current;
     // Switching tabs changes overlay visibility, not the persistent viewport.
-    // Refit only for a new/cleared search, changed boundaries, or a resize.
+    // Refit only for a new/cleared search or changed boundaries.
     if (!element || !behavior || searchArea === undefined) return;
     const previous = previousSearch.current;
-    previousSearch.current = { area: searchArea, ...size, geometry };
+    previousSearch.current = { area: searchArea, geometry };
     if (!searchArea && !previous?.area) return;
-    if (previous?.area === searchArea && previous.width === size.width && previous.height === size.height && previous.geometry === geometry) return;
+    if (previous?.area === searchArea && previous.geometry === geometry) return;
     select(element).call(behavior.transform, searchArea
       ? focusedAreaTransform(searchArea, size.width, size.height)
       : fittedTransform(geometry, size.width, size.height));

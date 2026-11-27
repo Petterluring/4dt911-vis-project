@@ -31,6 +31,10 @@ export function fittedTransform(geometry: DistrictGeometry, width: number, heigh
   return zoomIdentity.translate(viewport.left + viewport.width / 2, viewport.top + viewport.height / 2)
     .scale(scale).translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
 }
+export function resizedTransform(transform: ZoomTransform, previous: { width: number; height: number }, next: { width: number; height: number }): ZoomTransform {
+  return zoomIdentity.translate(transform.x + (next.width - previous.width) / 2, transform.y + (next.height - previous.height) / 2)
+    .scale(transform.k);
+}
 export function focusedListingTransform(listing: Pick<ListingLocation, 'latitude' | 'longitude'>, width: number, height: number, currentScale: number): ZoomTransform {
   const viewport = mapViewport(width, height);
   const scale = Math.max(2 ** 15, Math.min(2 ** 19, currentScale));
